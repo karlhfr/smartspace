@@ -31,6 +31,7 @@ import { Progress } from "@/components/ui/progress"
 
 interface FitterData {
   id: string
+  fitter_id: string // Added this line
   company_name: string
   email: string
   fitter_first_name: string
@@ -135,13 +136,13 @@ export default function FitterDashboard() {
 
     try {
       setRefreshing(true)
-      console.log("Fetching fitter data for email:", user.email)
+      console.log("Fetching fitter data for email:", user.uid)
       const fittersRef = collection(db, 'Fitters')
-      const q = query(fittersRef, where("email", "==", user.email))
+      const q = query(fittersRef, where("fitter_id", "==", user.uid))
       const querySnapshot = await getDocs(q)
 
       if (querySnapshot.empty) {
-        console.log("No fitter found for email:", user.email)
+        console.log("No fitter found for fitter_id:", user.uid)
         throw new Error('Fitter profile not found')
       }
 
@@ -730,7 +731,9 @@ export default function FitterDashboard() {
                       </Card>
                     ))}
                   </div>
-                  {!isLoading && surveyRequests.length % 10 === 0 && (
+                  {!isLoading && surveyRequests.length % 10 ===
+
+ 0 && (
                     <Button onClick={() => fetchMoreData('surveys')} className="w-full mt-4">
                       Load More
                     </Button>

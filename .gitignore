@@ -49,3 +49,5 @@ node_modules
 
 echo "config/your-service-account-key.json.json" >> .gitignore
 echo "your-service-account-key.json" >> .gitignore
+
+echo ".env" >> .gitignore
