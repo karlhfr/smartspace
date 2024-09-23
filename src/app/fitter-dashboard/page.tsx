@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { auth, db, storage } from '@/lib/firebase'
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, limit, startAfter, orderBy } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, limit, startAfter, orderBy, Timestamp } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { onAuthStateChanged } from 'firebase/auth'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -31,7 +31,6 @@ import { Progress } from "@/components/ui/progress"
 
 interface FitterData {
   id: string
-  fitter_id: string // Added this line
   company_name: string
   email: string
   fitter_first_name: string
@@ -136,13 +135,13 @@ export default function FitterDashboard() {
 
     try {
       setRefreshing(true)
-      console.log("Fetching fitter data for email:", user.uid)
+      console.log("Fetching fitter data for email:", user.email)
       const fittersRef = collection(db, 'Fitters')
-      const q = query(fittersRef, where("fitter_id", "==", user.uid))
+      const q = query(fittersRef, where("email", "==", user.email))
       const querySnapshot = await getDocs(q)
 
       if (querySnapshot.empty) {
-        console.log("No fitter found for fitter_id:", user.uid)
+        console.log("No fitter found for email:", user.email)
         throw new Error('Fitter profile not found')
       }
 
@@ -180,7 +179,7 @@ export default function FitterDashboard() {
         requests.push({
           id: doc.id,
           ...data,
-          created_at: data.created_at.toDate(),
+          created_at: data.created_at instanceof Timestamp ? data.created_at.toDate() : new Date(data.created_at),
         } as SurveyRequest)
       })
       console.log("Fetched survey requests:", requests)
@@ -208,8 +207,8 @@ export default function FitterDashboard() {
         fetchedQuotes.push({
           id: doc.id,
           ...data,
-          quote_date: data.quote_date.toDate(),
-          installation_date: data.installation_date?.toDate(),
+          quote_date: data.quote_date instanceof Timestamp ? data.quote_date.toDate() : new Date(data.quote_date),
+          installation_date: data.installation_date instanceof Timestamp ? data.installation_date.toDate() : data.installation_date ? new Date(data.installation_date) : undefined,
         } as Quote)
       })
       console.log("Fetched quotes:", fetchedQuotes)
@@ -237,7 +236,7 @@ export default function FitterDashboard() {
         fetchedReviewRequests.push({
           id: doc.id,
           ...data,
-          created_at: data.created_at.toDate(),
+          created_at: data.created_at instanceof Timestamp ? data.created_at.toDate() : new Date(data.created_at),
         } as ReviewRequest)
       })
       console.log("Fetched review requests:", fetchedReviewRequests)
@@ -387,7 +386,9 @@ export default function FitterDashboard() {
     try {
       const reviewRef = doc(db, 'ReviewRequests', reviewId)
       await updateDoc(reviewRef, {
-        status: action === 'approve' ? 'approved' : 'rejected'
+        status: action === 'approve' ? 'approved'
+
+ : 'rejected'
       })
       toast({
         title: "Success",
@@ -448,12 +449,15 @@ export default function FitterDashboard() {
       }
 
       const querySnapshot = await getDocs(q)
-      const newData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        created_at: doc.data().created_at?.toDate(),
-        quote_date: doc.data().quote_date?.toDate(),
-      }))
+      const newData = querySnapshot.docs.map(doc => {
+        const data = doc.data()
+        return {
+          id: doc.id,
+          ...data,
+          created_at: data.created_at instanceof Timestamp ? data.created_at.toDate() : new Date(data.created_at),
+          quote_date: data.quote_date instanceof Timestamp ? data.quote_date.toDate() : new Date(data.quote_date),
+        }
+      })
 
       setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1])
 
@@ -731,9 +735,7 @@ export default function FitterDashboard() {
                       </Card>
                     ))}
                   </div>
-                  {!isLoading && surveyRequests.length % 10 ===
-
- 0 && (
+                  {!isLoading && surveyRequests.length % 10 === 0 && (
                     <Button onClick={() => fetchMoreData('surveys')} className="w-full mt-4">
                       Load More
                     </Button>
@@ -842,7 +844,7 @@ export default function FitterDashboard() {
                                   </div>
                                   <div className="space-y-2">
                                     <h3 className="text-lg font-semibold">Installation Details</h3>
-                                    <p><span className="font-medium">Installation Date:</span> {quote.installation_date ? new Date(quote.installation_date).toLocaleDateString() : 'Not scheduled'}</p>
+                                    <p><span className="font-medium">Installation Date:</span> {quote.installation_date ? quote.installation_date.toLocaleDateString() : 'Not scheduled'}</p>
                                     <p><span className="font-medium">Installation Status:</span> {quote.installation_status || 'Not started'}</p>
                                     <p><span className="font-medium">Installer Notes:</span> {quote.installer_notes || 'No notes'}</p>
                                   </div>

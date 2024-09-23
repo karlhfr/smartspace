@@ -1,11 +1,11 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { auth, db, storage } from '@/lib/firebase'
-import { collection, query, where, getDocs, doc, updateDoc, addDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, limit, startAfter, orderBy, Timestamp } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { onAuthStateChanged } from 'firebase/auth'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { RefreshCw, Phone, Mail, Eye, FileText, Plus, Edit, User, Briefcase, MapPin, Star, Compass, Send, Check, X, ChevronLeft, ChevronRight, ClipboardList, FileQuestion, Wrench, MessageSquare, DollarSign } from 'lucide-react'
+import { RefreshCw, Phone, Mail, Eye, FileText, Plus, Edit, User, Briefcase, MapPin, Star, Compass, Send, Check, X, ChevronLeft, ChevronRight, ClipboardList, FileQuestion, Wrench, MessageSquare, DollarSign, Search } from 'lucide-react'
 import {
   Dialog,
   DialogContent,
@@ -79,6 +79,9 @@ interface Quote {
   review_requested?: boolean
   unit_paid?: boolean
   install_paid?: boolean
+  installation_date?: Date
+  installation_status?: string
+  installer_notes?: string
 }
 
 interface ReviewRequest {
@@ -102,6 +105,9 @@ export default function FitterDashboard() {
   const [editingProfile, setEditingProfile] = useState(false)
   const [updatedFitterData, setUpdatedFitterData] = useState<FitterData | null>(null)
   const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [lastVisible, setLastVisible] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -164,7 +170,7 @@ export default function FitterDashboard() {
   const fetchSurveyRequests = async (fitterId: string) => {
     try {
       console.log("Fetching survey requests for fitter ID:", fitterId)
-      const q = query(collection(db, 'SurveyRequests'), where('fitter_id', '==', fitterId))
+      const q = query(collection(db, 'SurveyRequests'), where('fitter_id', '==', fitterId), orderBy('created_at', 'desc'), limit(10))
       const querySnapshot = await getDocs(q)
       console.log("Survey requests query snapshot:", querySnapshot)
       const requests: SurveyRequest[] = []
@@ -173,11 +179,12 @@ export default function FitterDashboard() {
         requests.push({
           id: doc.id,
           ...data,
-          created_at: data.created_at.toDate(),
+          created_at: data.created_at instanceof Timestamp ? data.created_at.toDate() : new Date(data.created_at),
         } as SurveyRequest)
       })
       console.log("Fetched survey requests:", requests)
       setSurveyRequests(requests)
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1])
     } catch (error) {
       console.error('Error fetching survey requests:', error)
       toast({
@@ -191,7 +198,7 @@ export default function FitterDashboard() {
   const fetchQuotes = async (fitterId: string) => {
     try {
       console.log("Fetching quotes for fitter ID:", fitterId)
-      const q = query(collection(db, 'Quotes'), where('fitter_id', '==', fitterId))
+      const q = query(collection(db, 'Quotes'), where('fitter_id', '==', fitterId), orderBy('quote_date', 'desc'), limit(10))
       const querySnapshot = await getDocs(q)
       console.log("Quotes query snapshot:", querySnapshot)
       const fetchedQuotes: Quote[] = []
@@ -200,11 +207,13 @@ export default function FitterDashboard() {
         fetchedQuotes.push({
           id: doc.id,
           ...data,
-          quote_date: data.quote_date.toDate(),
+          quote_date: data.quote_date instanceof Timestamp ? data.quote_date.toDate() : new Date(data.quote_date),
+          installation_date: data.installation_date instanceof Timestamp ? data.installation_date.toDate() : data.installation_date ? new Date(data.installation_date) : undefined,
         } as Quote)
       })
       console.log("Fetched quotes:", fetchedQuotes)
       setQuotes(fetchedQuotes)
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1])
     } catch (error) {
       console.error('Error fetching quotes:', error)
       toast({
@@ -218,7 +227,7 @@ export default function FitterDashboard() {
   const fetchReviews = async (fitterId: string) => {
     try {
       console.log("Fetching review requests for fitter ID:", fitterId)
-      const q = query(collection(db, 'ReviewRequests'), where('fitter_id', '==', fitterId))
+      const q = query(collection(db, 'ReviewRequests'), where('fitter_id', '==', fitterId), orderBy('created_at', 'desc'), limit(10))
       const querySnapshot = await getDocs(q)
       console.log("Review requests query snapshot:", querySnapshot)
       const fetchedReviewRequests: ReviewRequest[] = []
@@ -227,11 +236,12 @@ export default function FitterDashboard() {
         fetchedReviewRequests.push({
           id: doc.id,
           ...data,
-          created_at: data.created_at.toDate(),
+          created_at: data.created_at instanceof Timestamp ? data.created_at.toDate() : new Date(data.created_at),
         } as ReviewRequest)
       })
       console.log("Fetched review requests:", fetchedReviewRequests)
       setReviewRequests(fetchedReviewRequests)
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1])
     } catch (error) {
       console.error('Error fetching review requests:', error)
       toast({
@@ -376,7 +386,9 @@ export default function FitterDashboard() {
     try {
       const reviewRef = doc(db, 'ReviewRequests', reviewId)
       await updateDoc(reviewRef, {
-        status: action === 'approve' ? 'approved' : 'rejected'
+        status: action === 'approve' ? 'approved'
+
+ : 'rejected'
       })
       toast({
         title: "Success",
@@ -403,6 +415,78 @@ export default function FitterDashboard() {
       return 0;
     });
   };
+
+  const fetchMoreData = async (type: 'surveys' | 'quotes' | 'reviews') => {
+    if (!fitterData || isLoading) return
+
+    setIsLoading(true)
+    try {
+      let q
+      if (type === 'surveys') {
+        q = query(
+          collection(db, 'SurveyRequests'),
+          where('fitter_id', '==', fitterData.id),
+          orderBy('created_at', 'desc'),
+          startAfter(lastVisible),
+          limit(10)
+        )
+      } else if (type === 'quotes') {
+        q = query(
+          collection(db, 'Quotes'),
+          where('fitter_id', '==', fitterData.id),
+          orderBy('quote_date', 'desc'),
+          startAfter(lastVisible),
+          limit(10)
+        )
+      } else {
+        q = query(
+          collection(db, 'ReviewRequests'),
+          where('fitter_id', '==', fitterData.id),
+          orderBy('created_at', 'desc'),
+          startAfter(lastVisible),
+          limit(10)
+        )
+      }
+
+      const querySnapshot = await getDocs(q)
+      const newData = querySnapshot.docs.map(doc => {
+        const data = doc.data()
+        return {
+          id: doc.id,
+          ...data,
+          created_at: data.created_at instanceof Timestamp ? data.created_at.toDate() : new Date(data.created_at),
+          quote_date: data.quote_date instanceof Timestamp ? data.quote_date.toDate() : new Date(data.quote_date),
+        }
+      })
+
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1])
+
+      if (type === 'surveys') {
+        setSurveyRequests(prev => [...prev, ...newData])
+      } else if (type === 'quotes') {
+        setQuotes(prev => [...prev, ...newData])
+      } else {
+        setReviewRequests(prev => [...prev, ...newData])
+      }
+    } catch (error) {
+      console.error(`Error fetching more ${type}:`, error)
+      toast({
+        title: "Error",
+        description: `Failed to fetch more ${type}. Please try again.`,
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const filterData = useCallback((data: any[], term: string) => {
+    return data.filter(item => 
+      Object.values(item).some(value => 
+        value && value.toString().toLowerCase().includes(term.toLowerCase())
+      )
+    )
+  }, [])
 
   if (loading) {
     return <div className="flex justify-center items-center h-screen bg-gray-900 text-white">Loading...</div>
@@ -559,6 +643,18 @@ export default function FitterDashboard() {
               Reviews
             </TabsTrigger>
           </TabsList>
+          <div className="mt-4 mb-2">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <Input
+                type="text"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-gray-700 text-white"
+              />
+            </div>
+          </div>
           <TabsContent value="surveys">
             <Card className="bg-gray-800 text-white">
               <CardHeader>
@@ -566,82 +662,83 @@ export default function FitterDashboard() {
                 <CardDescription>You have {surveyRequests.filter(r => r.status === 'pending').length} pending survey requests.</CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[400px] pr-4">
-                  {surveyRequests.length > 0 ? (
-                    <div className="space-y-4">
-                      {sortByPriority(surveyRequests).map((request) => (
-                        <Card key={request.id} className="bg-gray-700">
-                          <CardHeader>
-                            <div className="flex justify-between items-center">
-                              <CardTitle className="text-lg">{request.name}</CardTitle>
-                              <Badge variant={request.status === 'pending' ? 'secondary' : request.status === 'approved' ? 'success' : 'destructive'}>
-                                {request.status}
-                              </Badge>
+                <ScrollArea className="h-[600px] pr-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filterData(surveyRequests, searchTerm).map((request) => (
+                      <Card key={request.id} className="bg-gray-700">
+                        <CardHeader>
+                          <div className="flex justify-between items-center">
+                            <CardTitle className="text-lg">{request.name}</CardTitle>
+                            <Badge variant={request.status === 'pending' ? 'secondary' : request.status === 'approved' ? 'success' : 'destructive'}>
+                              {request.status}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-gray-400">Date: {request.created_at.toLocaleDateString()}</p>
+                          <div className="flex justify-between items-center mt-2">
+                            <div className="flex space-x-2">
+                              <a href={`tel:${request.phone}`} aria-label="Call customer">
+                                <Phone className="h-5 w-5 text-gray-400 hover:text-white" />
+                              </a>
+                              <a href={`mailto:${request.email}`} aria-label="Email customer">
+                                <Mail className="h-5 w-5 text-gray-400 hover:text-white" />
+                              </a>
                             </div>
-                          </CardHeader>
-                          <CardContent>
-                            <p className="text-sm text-gray-400">Date: {request.created_at.toLocaleDateString()}</p>
-                            <div className="flex justify-between items-center mt-2">
-                              <div className="flex space-x-2">
-                                <a href={`tel:${request.phone}`} aria-label="Call customer">
-                                  <Phone className="h-5 w-5 text-gray-400 hover:text-white" />
-                                </a>
-                                <a href={`mailto:${request.email}`} aria-label="Email customer">
-                                  <Mail className="h-5 w-5 text-gray-400 hover:text-white" />
-                                </a>
-                              </div>
-                              <div className="flex space-x-2">
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm">
-                                      <Eye className="mr-2 h-4 w-4" />
-                                      View
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent className="bg-gray-800 text-white">
-                                    <DialogHeader>
-                                      <DialogTitle>Survey Request Details</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="grid gap-4 py-4">
-                                      <div className="grid grid-cols-1 gap-2">
-                                        <Label>Name</Label>
-                                        <Input value={request.name} className="bg-gray-700" readOnly />
-                                      </div>
-                                      <div className="grid grid-cols-1 gap-2">
-                                        <Label>Email</Label>
-                                        <Input value={request.email} className="bg-gray-700" readOnly />
-                                      </div>
-                                      <div className="grid grid-cols-1 gap-2">
-                                        <Label>Phone</Label>
-                                        <Input value={request.phone} className="bg-gray-700" readOnly />
-                                      </div>
-                                      <div className="grid grid-cols-1 gap-2">
-                                        <Label>Address</Label>
-                                        <Input value={request.address} className="bg-gray-700" readOnly />
-                                      </div>
-                                      <div className="grid grid-cols-1 gap-2">
-                                        <Label>Message</Label>
-                                        <textarea 
-                                          value={request.message || 'No message provided'} 
-                                          className="w-full h-24 p-2 bg-gray-700 rounded-md" 
-                                          readOnly 
-                                        />
-                                      </div>
+                            <div className="flex space-x-2">
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm">
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    View
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="bg-gray-800 text-white">
+                                  <DialogHeader>
+                                    <DialogTitle>Survey Request Details</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="grid gap-4 py-4">
+                                    <div className="grid grid-cols-1 gap-2">
+                                      <Label>Name</Label>
+                                      <Input value={request.name} className="bg-gray-700" readOnly />
                                     </div>
-                                  </DialogContent>
-                                </Dialog>
-                                <Button onClick={() => router.push(`/fitter/quote?surveyId=${request.id}`)} size="sm">
-                                  <FileText className="mr-2 h-4 w-4" />
-                                  Quote
-                                </Button>
-                              </div>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      <Label>Email</Label>
+                                      <Input value={request.email} className="bg-gray-700" readOnly />
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      <Label>Phone</Label>
+                                      <Input value={request.phone} className="bg-gray-700" readOnly />
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      <Label>Address</Label>
+                                      <Input value={request.address} className="bg-gray-700" readOnly />
+                                    </div>
+                                    <div className="grid grid-cols-1 gap-2">
+                                      <Label>Message</Label>
+                                      <textarea 
+                                        value={request.message || 'No message provided'} 
+                                        className="w-full h-24 p-2 bg-gray-700 rounded-md" 
+                                        readOnly 
+                                      />
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                              <Button onClick={() => router.push(`/fitter/quote?surveyId=${request.id}`)} size="sm">
+                                <FileText className="mr-2 h-4 w-4" />
+                                Quote
+                              </Button>
                             </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    <p>No recent survey requests</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  {!isLoading && surveyRequests.length % 10 === 0 && (
+                    <Button onClick={() => fetchMoreData('surveys')} className="w-full mt-4">
+                      Load More
+                    </Button>
                   )}
                 </ScrollArea>
               </CardContent>
@@ -664,108 +761,115 @@ export default function FitterDashboard() {
                 </div>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[400px] pr-4">
-                  {quotes.length > 0 ? (
-                    <div className="space-y-4">
-                      {sortByPriority(quotes).map((quote) => (
-                        <Card key={quote.id} className="bg-gray-700">
-                          <CardHeader>
-                            <div className="flex justify-between items-center">
-                              <CardTitle className="text-lg">{quote.customer_name}</CardTitle>
-                              <Badge variant={quote.status === 'pending' ? 'secondary' : quote.status === 'sent' ? 'primary' : 'success'}>
-                                {quote.status}
-                              </Badge>
+                <ScrollArea className="h-[600px] pr-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filterData(quotes, searchTerm).map((quote) => (
+                      <Card key={quote.id} className="bg-gray-700">
+                        <CardHeader>
+                          <div className="flex justify-between items-center">
+                            <CardTitle className="text-lg">{quote.customer_name}</CardTitle>
+                            <Badge variant={quote.status === 'pending' ? 'secondary' : quote.status === 'sent' ? 'primary' : 'success'}>
+                              {quote.status}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex justify-between items-center">
+                            <p className="text-sm text-gray-400">Quote #: {quote.quote_number}</p>
+                            <p className="text-sm text-gray-400">Date: {quote.quote_date.toLocaleDateString()}</p>
+                          </div>
+                          <div className="flex justify-between items-center mt-2">
+                            <p className="font-bold">Total: £{quote.total_price.toFixed(2)}</p>
+                            <div className="flex space-x-2">
+                              <a href={`tel:${quote.customer_phone}`} aria-label="Call customer">
+                                <Phone className="h-5 w-5 text-gray-400 hover:text-white" />
+                              </a>
+                              <a href={`mailto:${quote.customer_email}`} aria-label="Email customer">
+                                <Mail className="h-5 w-5 text-gray-400 hover:text-white" />
+                              </a>
                             </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex justify-between items-center">
-                              <p className="text-sm text-gray-400">Quote #: {quote.quote_number}</p>
-                              <p className="text-sm text-gray-400">Date: {quote.quote_date.toLocaleDateString()}</p>
-                            </div>
-                            <div className="flex justify-between items-center mt-2">
-                              <p className="font-bold">Total: £{quote.total_price.toFixed(2)}</p>
-                              <div className="flex space-x-2">
-                                <a href={`tel:${quote.customer_phone}`} aria-label="Call customer">
-                                  <Phone className="h-5 w-5 text-gray-400 hover:text-white" />
-                                </a>
-                                <a href={`mailto:${quote.customer_email}`} aria-label="Email customer">
-                                  <Mail className="h-5 w-5 text-gray-400 hover:text-white" />
-                                </a>
-                              </div>
-                            </div>
-                            <div className="flex justify-end mt-4 space-x-2">
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button variant="outline" size="sm">
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    View Quote
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="bg-gray-800 text-white max-w-3xl">
-                                  <DialogHeader>
-                                    <DialogTitle className="text-2xl font-bold">Quote Details</DialogTitle>
-                                  </DialogHeader>
-                                  <div className="grid gap-6 py-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <div className="space-y-2">
-                                        <h3 className="text-lg font-semibold">Customer Information</h3>
-                                        <p><span className="font-medium">Name:</span> {quote.customer_name}</p>
-                                        <p><span className="font-medium">Email:</span> {quote.customer_email}</p>
-                                        <p><span className="font-medium">Phone:</span> {quote.customer_phone}</p>
-                                        <p><span className="font-medium">Address:</span> {quote.customer_address}</p>
-                                      </div>
-                                      <div className="space-y-2">
-                                        <h3 className="text-lg font-semibold">Quote Details</h3>
-                                        <p><span className="font-medium">Quote Number:</span> {quote.quote_number}</p>
-                                        <p><span className="font-medium">Date:</span> {quote.quote_date.toLocaleDateString()}</p>
-                                        <p><span className="font-medium">Status:</span> {quote.status}</p>
-                                        <p><span className="font-medium">Total Price:</span> £{quote.total_price.toFixed(2)}</p>
-                                      </div>
+                          </div>
+                          <div className="flex flex-wrap justify-end mt-4 space-x-2">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button variant="outline" size="sm">
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  View Quote
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="bg-gray-800 text-white max-w-4xl max-h-[80vh] overflow-y-auto">
+                                <DialogHeader>
+                                  <DialogTitle className="text-2xl font-bold">Quote Details</DialogTitle>
+                                </DialogHeader>
+                                <div className="grid gap-6 py-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                      <h3 className="text-lg font-semibold">Customer Information</h3>
+                                      <p><span className="font-medium">Name:</span> {quote.customer_name}</p>
+                                      <p><span className="font-medium">Email:</span> {quote.customer_email}</p>
+                                      <p><span className="font-medium">Phone:</span> {quote.customer_phone}</p>
+                                      <p><span className="font-medium">Address:</span> {quote.customer_address}</p>
                                     </div>
                                     <div className="space-y-2">
-                                      <h3 className="text-lg font-semibold">Measurements</h3>
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <p><span className="font-medium">Stair Width:</span> {quote.stair_width}mm</p>
-                                        <p><span className="font-medium">Height of 4 Steps:</span> {quote.height_of_4_steps}mm</p>
-                                        <p><span className="font-medium">Length of 4 Steps:</span> {quote.length_of_4_steps}mm</p>
-                                        <p><span className="font-medium">Tread Depth:</span> {quote.tread_depth}mm</p>
-                                        <p><span className="font-medium">Riser Height:</span> {quote.riser_height}mm</p>
-                                      </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                      <h3 className="text-lg font-semibold">Options</h3>
-                                      <div className="grid grid-cols-2 gap-2">
-                                        <p><span className="font-medium">Color:</span> {quote.color_option}</p>
-                                        <p><span className="font-medium">Drawer:</span> {quote.drawer_option}</p>
-                                        <p><span className="font-medium">Handle Size:</span> {quote.handle_size}</p>
-                                        <p><span className="font-medium">Handle Color:</span> {quote.handle_color}</p>
-                                      </div>
-                                    </div>
-                                    <div className="space-y-2">
-                                      <h3 className="text-lg font-semibold">Additional Information</h3>
-                                      <p><span className="font-medium">Installation Price:</span> £{quote.install_price.toFixed(2)}</p>
-                                      <p><span className="font-medium">Notes:</span> {quote.additional_notes || 'No additional notes'}</p>
+                                      <h3 className="text-lg font-semibold">Quote Details</h3>
+                                      <p><span className="font-medium">Quote Number:</span> {quote.quote_number}</p>
+                                      <p><span className="font-medium">Date:</span> {quote.quote_date.toLocaleDateString()}</p>
+                                      <p><span className="font-medium">Status:</span> {quote.status}</p>
+                                      <p><span className="font-medium">Total Price:</span> £{quote.total_price.toFixed(2)}</p>
                                     </div>
                                   </div>
-                                  <DialogFooter>
-                                    <Button variant="outline" onClick={() => console.log('Resend quote email')}>
-                                      <Send className="mr-2 h-4 w-4" />
-                                      Resend Quote
-                                    </Button>
-                                  </DialogFooter>
-                                </DialogContent>
-                              </Dialog>
-                              <Button variant="outline" size="sm" onClick={() => console.log('Resend quote email')}>
-                                <Send className="mr-2 h-4 w-4" />
-                                Resend Quote
-                              </Button>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    <p>No recent quotes</p>
+                                  <div className="space-y-2">
+                                    <h3 className="text-lg font-semibold">Measurements</h3>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <p><span className="font-medium">Stair Width:</span> {quote.stair_width}mm</p>
+                                      <p><span className="font-medium">Height of 4 Steps:</span> {quote.height_of_4_steps}mm</p>
+                                      <p><span className="font-medium">Length of 4 Steps:</span> {quote.length_of_4_steps}mm</p>
+                                      <p><span className="font-medium">Tread Depth:</span> {quote.tread_depth}mm</p>
+                                      <p><span className="font-medium">Riser Height:</span> {quote.riser_height}mm</p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <h3 className="text-lg font-semibold">Options</h3>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <p><span className="font-medium">Color:</span> {quote.color_option}</p>
+                                      <p><span className="font-medium">Drawer:</span> {quote.drawer_option}</p>
+                                      <p><span className="font-medium">Handle Size:</span> {quote.handle_size}</p>
+                                      <p><span className="font-medium">Handle Color:</span> {quote.handle_color}</p>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <h3 className="text-lg font-semibold">Additional Information</h3>
+                                    <p><span className="font-medium">Installation Price:</span> £{quote.install_price.toFixed(2)}</p>
+                                    <p><span className="font-medium">Notes:</span> {quote.additional_notes || 'No additional notes'}</p>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <h3 className="text-lg font-semibold">Installation Details</h3>
+                                    <p><span className="font-medium">Installation Date:</span> {quote.installation_date ? quote.installation_date.toLocaleDateString() : 'Not scheduled'}</p>
+                                    <p><span className="font-medium">Installation Status:</span> {quote.installation_status || 'Not started'}</p>
+                                    <p><span className="font-medium">Installer Notes:</span> {quote.installer_notes || 'No notes'}</p>
+                                  </div>
+                                </div>
+                                <DialogFooter>
+                                  <Button variant="outline" onClick={() => console.log('Resend quote email')}>
+                                    <Send className="mr-2 h-4 w-4" />
+                                    Resend Quote
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
+                            <Button variant="outline" size="sm" onClick={() => console.log('Resend quote email')}>
+                              <Send className="mr-2 h-4 w-4" />
+                              Resend Quote
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  {!isLoading && quotes.length % 10 === 0 && (
+                    <Button onClick={() => fetchMoreData('quotes')} className="w-full mt-4">
+                      Load More
+                    </Button>
                   )}
                 </ScrollArea>
               </CardContent>
@@ -778,75 +882,116 @@ export default function FitterDashboard() {
                 <CardDescription>You have {quotes.filter(q => q.status === 'completed' && !q.review_requested).length} installs that need review requests.</CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[400px] pr-4">
-                  {quotes.filter(q => q.status === 'completed').length > 0 ? (
-                    <div className="space-y-4">
-                      {quotes.filter(q => q.status === 'completed').map((install) => (
-                        <Card key={install.id} className="bg-gray-700">
-                          <CardHeader>
-                            <div className="flex justify-between items-center">
-                              <CardTitle className="text-lg">{install.customer_name}</CardTitle>
-                              <Badge variant="success">Completed</Badge>
+                <ScrollArea className="h-[600px] pr-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filterData(quotes.filter(q => q.status === 'completed'), searchTerm).map((install) => (
+                      <Card key={install.id} className="bg-gray-700">
+                        <CardHeader>
+                          <div className="flex justify-between items-center">
+                            <CardTitle className="text-lg">{install.customer_name}</CardTitle>
+                            <Badge variant="success">Completed</Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex justify-between items-center">
+                            <p className="text-sm text-gray-400">Quote #: {install.quote_number}</p>
+                            <p className="text-sm text-gray-400">Install Date: {install.quote_date.toLocaleDateString()}</p>
+                          </div>
+                          <div className="flex justify-between items-center mt-2">
+                            <p className="font-bold">Total: £{install.total_price.toFixed(2)}</p>
+                            <div className="flex space-x-2">
+                              <a href={`tel:${install.customer_phone}`} aria-label="Call customer">
+                                <Phone className="h-5 w-5 text-gray-400 hover:text-white" />
+                              </a>
+                              <a href={`mailto:${install.customer_email}`} aria-label="Email customer">
+                                <Mail className="h-5 w-5 text-gray-400 hover:text-white" />
+                              </a>
                             </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex justify-between items-center">
-                              <p className="text-sm text-gray-400">Quote #: {install.quote_number}</p>
-                              <p className="text-sm text-gray-400">Install Date: {install.quote_date.toLocaleDateString()}</p>
+                          </div>
+                          <div className="flex flex-wrap justify-between mt-4">
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant={install.unit_paid ? 'success' : 'destructive'}>
+                                Unit: {install.unit_paid ? 'Paid' : 'Unpaid'}
+                              </Badge>
+                              <Badge variant={install.install_paid ? 'success' : 'destructive'}>
+                                Install: {install.install_paid ? 'Paid' : 'Unpaid'}
+                              </Badge>
                             </div>
-                            <div className="flex justify-between items-center mt-2">
-                              <p className="font-bold">Total: £{install.total_price.toFixed(2)}</p>
-                              <div className="flex space-x-2">
-                                <a href={`tel:${install.customer_phone}`} aria-label="Call customer">
-                                  <Phone className="h-5 w-5 text-gray-400 hover:text-white" />
-                                </a>
-                                <a href={`mailto:${install.customer_email}`} aria-label="Email customer">
-                                  <Mail className="h-5 w-5 text-gray-400 hover:text-white" />
-                                </a>
-                              </div>
-                            </div>
-                            <div className="flex justify-between mt-4">
-                              <div>
-                                <Badge variant={install.unit_paid ? 'success' : 'destructive'}>
-                                  Unit: {install.unit_paid ? 'Paid' : 'Unpaid'}
-                                </Badge>
-                                <Badge variant={install.install_paid ? 'success' : 'destructive'} className="ml-2">
-                                  Install: {install.install_paid ? 'Paid' : 'Unpaid'}
-                                </Badge>
-                              </div>
-                              <div className="flex space-x-2">
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm">
-                                      <Eye className="mr-2 h-4 w-4" />
-                                      View Install
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent className="bg-gray-800 text-white max-w-3xl">
-                                    <DialogHeader>
-                                      <DialogTitle className="text-2xl font-bold">Install Details</DialogTitle>
-                                    </DialogHeader>
-                                    <div className="grid gap-6 py-4">
-                                      {/* Add install details here */}
+                            <div className="flex flex-wrap gap-2 mt-2 sm:mt-0">
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm">
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    View Install
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="bg-gray-800 text-white max-w-4xl max-h-[80vh] overflow-y-auto">
+                                  <DialogHeader>
+                                    <DialogTitle className="text-2xl font-bold">Install Details</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="grid gap-6 py-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold">Customer Information</h3>
+                                        <p><span className="font-medium">Name:</span> {install.customer_name}</p>
+                                        <p><span className="font-medium">Email:</span> {install.customer_email}</p>
+                                        <p><span className="font-medium">Phone:</span> {install.customer_phone}</p>
+                                        <p><span className="font-medium">Address:</span> {install.customer_address}</p>
+                                      </div>
+                                      <div className="space-y-2">
+                                        <h3 className="text-lg font-semibold">Install Details</h3>
+                                        <p><span className="font-medium">Quote Number:</span> {install.quote_number}</p>
+                                        <p><span className="font-medium">Install Date:</span> {install.quote_date.toLocaleDateString()}</p>
+                                        <p><span className="font-medium">Total Price:</span> £{install.total_price.toFixed(2)}</p>
+                                        <p><span className="font-medium">Unit Payment:</span> {install.unit_paid ? 'Paid' : 'Unpaid'}</p>
+                                        <p><span className="font-medium">Install Payment:</span> {install.install_paid ? 'Paid' : 'Unpaid'}</p>
+                                      </div>
                                     </div>
-                                  </DialogContent>
-                                </Dialog>
-                                <Button variant="outline" size="sm" onClick={() => console.log('Send invoice')}>
-                                  <DollarSign className="mr-2 h-4 w-4" />
-                                  Send Invoice
-                                </Button>
-                                <Button variant="outline" size="sm" disabled={install.review_requested} onClick={() => sendReviewRequest(install)}>
-                                  <Star className="mr-2 h-4 w-4" />
-                                  {install.review_requested ? 'Review Requested' : 'Request Review'}
-                                </Button>
-                              </div>
+                                    <div className="space-y-2">
+                                      <h3 className="text-lg font-semibold">Product Details</h3>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <p><span className="font-medium">Color:</span> {install.color_option}</p>
+                                        <p><span className="font-medium">Drawer:</span> {install.drawer_option}</p>
+                                        <p><span className="font-medium">Handle Size:</span> {install.handle_size}</p>
+                                        <p><span className="font-medium">Handle Color:</span> {install.handle_color}</p>
+                                      </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <h3 className="text-lg font-semibold">Measurements</h3>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        <p><span className="font-medium">Stair Width:</span> {install.stair_width}mm</p>
+                                        <p><span className="font-medium">Height of 4 Steps:</span> {install.height_of_4_steps}mm</p>
+                                        <p><span className="font-medium">Length of 4 Steps:</span> {install.length_of_4_steps}mm</p>
+                                        <p><span className="font-medium">Tread Depth:</span> {install.tread_depth}mm</p>
+                                        <p><span className="font-medium">Riser Height:</span> {install.riser_height}mm</p>
+                                      </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <h3 className="text-lg font-semibold">Additional Information</h3>
+                                      <p><span className="font-medium">Installation Price:</span> £{install.install_price.toFixed(2)}</p>
+                                      <p><span className="font-medium">Notes:</span> {install.additional_notes || 'No additional notes'}</p>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                              <Button variant="outline" size="sm" onClick={() => console.log('Send invoice')}>
+                                <DollarSign className="mr-2 h-4 w-4" />
+                                Send Invoice
+                              </Button>
+                              <Button variant="outline" size="sm" disabled={install.review_requested} onClick={() => sendReviewRequest(install)}>
+                                <Star className="mr-2 h-4 w-4" />
+                                {install.review_requested ? 'Review Requested' : 'Request Review'}
+                              </Button>
                             </div>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    <p>No completed installs</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  {!isLoading && quotes.filter(q => q.status === 'completed').length % 10 === 0 && (
+                    <Button onClick={() => fetchMoreData('quotes')} className="w-full mt-4">
+                      Load More
+                    </Button>
                   )}
                 </ScrollArea>
               </CardContent>
@@ -859,65 +1004,66 @@ export default function FitterDashboard() {
                 <CardDescription>You have {reviewRequests.filter(r => r.status === 'pending').length} pending reviews to moderate.</CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[400px] pr-4">
-                  {reviewRequests.length > 0 ? (
-                    <div className="space-y-4">
-                      {sortByPriority(reviewRequests).map((review) => (
-                        <Card key={review.id} className="bg-gray-700">
-                          <CardHeader>
-                            <div className="flex justify-between items-center">
-                              <CardTitle className="text-lg">{review.customer_name}</CardTitle>
-                              <Badge 
-                                variant={
-                                  review.status === 'pending' ? 'secondary' : 
-                                  review.status === 'approved' ? 'success' : 
-                                  'destructive'
-                                }
+                <ScrollArea className="h-[600px] pr-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filterData(reviewRequests, searchTerm).map((review) => (
+                      <Card key={review.id} className="bg-gray-700">
+                        <CardHeader>
+                          <div className="flex justify-between items-center">
+                            <CardTitle className="text-lg">{review.customer_name}</CardTitle>
+                            <Badge 
+                              variant={
+                                review.status === 'pending' ? 'secondary' : 
+                                review.status === 'approved' ? 'success' : 
+                                'destructive'
+                              }
+                            >
+                              {review.status}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center mb-2">
+                            {[...Array(5)].map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`h-5 w-5 ${
+                                  i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'
+                                }`}
+                              />
+                            ))}
+                            <span className="ml-2">{review.rating}/5</span>
+                          </div>
+                          <p className="text-sm mb-4">{review.comment}</p>
+                          <p className="text-xs text-gray-400">Date: {review.created_at.toLocaleDateString()}</p>
+                          {review.status === 'pending' && (
+                            <div className="flex justify-end space-x-2 mt-4">
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => handleReviewAction(review.id, 'approve')}
                               >
-                                {review.status}
-                              </Badge>
+                                <Check className="mr-2 h-4 w-4" />
+                                Approve
+                              </Button>
+                              <Button 
+                                variant="outline" 
+                                size="sm"
+                                onClick={() => handleReviewAction(review.id, 'reject')}
+                              >
+                                <X className="mr-2 h-4 w-4" />
+                                Reject
+                              </Button>
                             </div>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex items-center mb-2">
-                              {[...Array(5)].map((_, i) => (
-                                <Star
-                                  key={i}
-                                  className={`h-5 w-5 ${
-                                    i < review.rating ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'
-                                  }`}
-                                />
-                              ))}
-                              <span className="ml-2">{review.rating}/5</span>
-                            </div>
-                            <p className="text-sm mb-4">{review.comment}</p>
-                            <p className="text-xs text-gray-400">Date: {review.created_at.toLocaleDateString()}</p>
-                            {review.status === 'pending' && (
-                              <div className="flex justify-end space-x-2 mt-4">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
-                                  onClick={() => handleReviewAction(review.id, 'approve')}
-                                >
-                                  <Check className="mr-2 h-4 w-4" />
-                                  Approve
-                                </Button>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => handleReviewAction(review.id, 'reject')}
-                                >
-                                  <X className="mr-2 h-4 w-4" />
-                                  Reject
-                                </Button>
-                              </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  ) : (
-                    <p>No review requests yet</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  {!isLoading && reviewRequests.length % 10 === 0 && (
+                    <Button onClick={() => fetchMoreData('reviews')} className="w-full mt-4">
+                      Load More
+                    </Button>
                   )}
                 </ScrollArea>
               </CardContent>
