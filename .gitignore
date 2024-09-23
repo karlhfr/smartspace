@@ -47,7 +47,8 @@ node_modules
 .next
 .env.local
 
-echo "config/your-service-account-key.json.json" >> .gitignore
-echo "your-service-account-key.json" >> .gitignore
+your-service-account-key.json
+config/your-service-account-key.json.json
+.env
 
 echo ".env" >> .gitignore
