@@ -46,3 +46,6 @@ ui-debug.log
 node_modules
 .next
 .env.local
+
+echo "config/your-service-account-key.json.json" >> .gitignore
+echo "your-service-account-key.json" >> .gitignore
