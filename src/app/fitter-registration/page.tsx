@@ -12,7 +12,7 @@ import { useToast } from "@/components/ui/use-toast"
 import { db, auth } from '@/lib/firebase'
 import { collection, addDoc } from 'firebase/firestore'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
-import { AutocompleteInput } from '@/components/AutocompleteInput'
+import AutocompleteInput from '@/components/AutocompleteInput'
 
 const formSchema = z.object({
   company_name: z.string().min(2, { message: "Company name must be at least 2 characters." }),
