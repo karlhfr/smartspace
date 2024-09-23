@@ -1,6 +1,19 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getAuth, User } from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  query, 
+  orderBy, 
+  where, 
+  Firestore,
+  addDoc,
+  serverTimestamp
+} from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 
@@ -26,4 +39,23 @@ const auth = getAuth(app);
 const storage = getStorage(app);
 const functions = getFunctions(app);
 
-export { app, db, auth, storage, functions };
+export { 
+  app, 
+  db, 
+  auth, 
+  storage, 
+  functions, 
+  collection, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  getDocs, 
+  query, 
+  orderBy, 
+  where,
+  Firestore,
+  addDoc,
+  serverTimestamp
+};
+
+export type { User };

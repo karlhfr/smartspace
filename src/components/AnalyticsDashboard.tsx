@@ -1,62 +1,45 @@
 // src/components/AnalyticsDashboard.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { getAnalytics } from '@/lib/analytics';
-import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+interface AnalyticsData {
+  customerAcquisition: number;
+  projectCompletions: number;
+  totalRevenue: number;
+  averageSatisfaction: number;
+}
 
 export function AnalyticsDashboard() {
-  const [analytics, setAnalytics] = useState(null);
-  const { user } = useAuth();
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
 
   useEffect(() => {
-    if (user) {
-      const fetchAnalytics = async () => {
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 1);  // Last 30 days
-        const data = await getAnalytics(user.uid, startDate, endDate);
-        setAnalytics(data);
-      };
-      fetchAnalytics();
+    async function fetchAnalytics() {
+      const data = await getAnalytics();
+      setAnalytics(data);
     }
-  }, [user]);
+    fetchAnalytics();
+  }, []);
 
   if (!analytics) return <div>Loading...</div>;
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>New Customers</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">{analytics.customerAcquisition}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Completed Projects</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">{analytics.projectCompletions}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Total Revenue</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">£{analytics.totalRevenue.toFixed(2)}</p>
-        </CardContent>
-      </Card>
-      <Card>
-        <CardHeader>
-          <CardTitle>Average Satisfaction</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-2xl font-bold">{analytics.averageSatisfaction.toFixed(1)} / 5</p>
-        </CardContent>
-      </Card>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h3 className="text-lg font-semibold mb-2">New Customers</h3>
+        <p className="text-2xl font-bold">{analytics.customerAcquisition}</p>
+      </div>
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h3 className="text-lg font-semibold mb-2">Completed Projects</h3>
+        <p className="text-2xl font-bold">{analytics.projectCompletions}</p>
+      </div>
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h3 className="text-lg font-semibold mb-2">Total Revenue</h3>
+        <p className="text-2xl font-bold">£{analytics.totalRevenue.toFixed(2)}</p>
+      </div>
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h3 className="text-lg font-semibold mb-2">Average Satisfaction</h3>
+        <p className="text-2xl font-bold">{analytics.averageSatisfaction.toFixed(1)} / 5</p>
+      </div>
     </div>
   );
 }

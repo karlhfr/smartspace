@@ -1,17 +1,30 @@
 import { useState, useEffect } from 'react'
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore'
+import { collection, query, where, getDocs } from '@/lib/firebase'
+import { db } from '@/lib/firebase'
 
-const db = getFirestore()
+interface Survey {
+  id: string;
+  customerName: string;
+  status: string;
+  // Add other survey properties here
+}
 
-export default function FitterDashboard({ fitterId }) {
-  const [surveys, setSurveys] = useState([])
+interface FitterDashboardProps {
+  fitterId: string;
+}
+
+export default function FitterDashboard({ fitterId }: FitterDashboardProps) {
+  const [surveys, setSurveys] = useState<Survey[]>([])
 
   useEffect(() => {
     const fetchSurveys = async () => {
       const surveysRef = collection(db, 'Surveys')
       const q = query(surveysRef, where('fitterId', '==', fitterId))
       const querySnapshot = await getDocs(q)
-      const surveyData = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      const surveyData = querySnapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data() 
+      } as Survey))
       setSurveys(surveyData)
     }
 
@@ -27,7 +40,6 @@ export default function FitterDashboard({ fitterId }) {
         <ul>
           {surveys.map(survey => (
             <li key={survey.id}>
-              {/* Display survey details */}
               <p>Customer: {survey.customerName}</p>
               <p>Status: {survey.status}</p>
               {/* Add more survey details as needed */}

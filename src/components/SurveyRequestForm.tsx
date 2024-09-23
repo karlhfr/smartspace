@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { createSurveyRequest } from '../utils/createSurvey'
 
-export default function SurveyRequestForm({ fitterId, fitterCompanyName }) {
+export default function SurveyRequestForm({ fitterId, fitterCompanyName }: { fitterId: string; fitterCompanyName: string }) {
   const [formData, setFormData] = useState({
     // ... other form fields
   })
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
       const surveyId = await createSurveyRequest({

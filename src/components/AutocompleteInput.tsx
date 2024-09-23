@@ -3,12 +3,14 @@ import { Input } from "@/components/ui/input"
 import Script from 'next/script'
 
 interface AutocompleteInputProps {
-  onPlaceSelected: (place: { formatted_address: string; latitude: number; longitude: number }) => void
-  value: string
-  onChange: (value: string) => void
+  value: string;
+  onChange: (value: string) => void;
+  onPlaceSelected: (place: { formatted_address: string; latitude: number; longitude: number; }) => void;
+  className?: string;
+  id?: string;
 }
 
-export function AutocompleteInput({ onPlaceSelected, value, onChange }: AutocompleteInputProps) {
+const AutocompleteInput: React.FC<AutocompleteInputProps> = ({ value, onChange, onPlaceSelected, className, id }) => {
   const inputRef = useRef<HTMLInputElement>(null)
   const autocompleteRef = useRef<google.maps.places.AutocompleteService | null>(null)
   const [isLoaded, setIsLoaded] = useState(false)
@@ -131,3 +133,5 @@ export function AutocompleteInput({ onPlaceSelected, value, onChange }: Autocomp
     </>
   )
 }
+
+export default AutocompleteInput;

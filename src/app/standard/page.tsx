@@ -7,8 +7,15 @@ import { motion } from 'framer-motion'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowRight, Maximize2, Shield, Clock, Wrench, Palette, Box, Check, Lock, PaintBucket, Star, Zap } from 'lucide-react'
+import { IconType } from 'react-icons';
 
-const FeatureCard = ({ icon: Icon, title, description }) => (
+interface FeatureCardProps {
+  icon: IconType;
+  title: string;
+  description: string;
+}
+
+const FeatureCard: React.FC<FeatureCardProps> = ({ icon: Icon, title, description }) => (
   <Card className="bg-background/50 backdrop-blur-sm border-primary/10 hover:border-primary/30 transition-all duration-300">
     <CardHeader>
       <Icon className="h-10 w-10 mb-2 text-primary" />
@@ -20,7 +27,13 @@ const FeatureCard = ({ icon: Icon, title, description }) => (
   </Card>
 )
 
-const ReviewCard = ({ name, rating, comment }) => (
+interface ReviewCardProps {
+  name: string;
+  rating: number;
+  comment: string;
+}
+
+const ReviewCard: React.FC<ReviewCardProps> = ({ name, rating, comment }) => (
   <Card className="bg-background/50 backdrop-blur-sm border-primary/10 hover:border-primary/30 transition-all duration-300">
     <CardHeader>
       <CardTitle className="flex items-center">

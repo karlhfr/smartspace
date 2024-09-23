@@ -1,41 +1,45 @@
 'use client'
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { User as FirebaseUser } from 'firebase/auth';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { auth, db, User, doc, getDoc } from '@/lib/firebase';
+
+interface UserData {
+  uid: string;
+  email: string;
+  company_name: string;
+  contact_name: string;
+  phone: string;
+  address: string;
+  service_radius: number;
+  is_active: boolean;
+  rating: number;
+  total_reviews: number;
+}
 
 interface UserContextType {
-  user: {
-    uid: string;
-    email: string;
-    company_name: string;
-    contact_name: string;
-    phone: string;
-    address: string;
-    service_radius: number;
-    is_active: boolean;
-    rating: number;
-    total_reviews: number;
-  } | null;
+  user: UserData | null;
   loading: boolean;
 }
 
 const UserContext = createContext<UserContextType>({ user: null, loading: true });
 
-export const UserProvider: React.FC = ({ children }) => {
-  const [user, setUser] = useState<UserContextType['user']>(null);
+interface UserProviderProps {
+  children: ReactNode;
+}
+
+export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
+  const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser: User | null) => {
       if (firebaseUser) {
         const fitterDoc = await getDoc(doc(db, 'Fitters', firebaseUser.uid));
         if (fitterDoc.exists()) {
           setUser({
             uid: firebaseUser.uid,
             email: firebaseUser.email!,
-            ...fitterDoc.data() as Omit<UserContextType['user'], 'uid' | 'email'>
+            ...(fitterDoc.data() as Omit<UserData, 'uid' | 'email'>)
           });
         }
       } else {

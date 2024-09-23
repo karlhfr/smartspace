@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { db, auth } from '@/lib/firebase';
 import { collection, addDoc } from 'firebase/firestore';
+import { useAuth } from '@/contexts/AuthContext'; // Update the import path
 
-export default function SubmitQuote() {
+export default function SubmitQuotePage() {
+  const { user } = useAuth(); // Get the user from your auth hook
   const router = useRouter();
   const [formData, setFormData] = useState({
     customer_name: '',
@@ -27,7 +29,6 @@ export default function SubmitQuote() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const user = auth.currentUser;
       if (!user) {
         alert('You must be logged in to submit a quote.');
         return;
@@ -35,7 +36,7 @@ export default function SubmitQuote() {
 
       const quoteData = {
         ...formData,
-        fitter_id: uid,
+        fitter_id: user?.uid, // Use the user's UID from the auth hook
         quote_date: new Date(),
       };
 

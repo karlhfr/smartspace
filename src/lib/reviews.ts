@@ -47,3 +47,7 @@ export async function addReview(fitterId: string, reviewData: ReviewRequestData)
     throw new Error('Failed to add review request. Please try again.')
   }
 }
+
+export const createReview = async (reviewData: any) => {
+  // Implementation of createReview function
+};

@@ -1,304 +1,263 @@
-'use client'
+//fitterdashboard
 
-import React, { useEffect, useState, useCallback } from 'react'
-import { useRouter } from 'next/navigation'
-import Image from 'next/image'
-import Link from 'next/link'
-import { auth, db, storage } from '@/lib/firebase'
-import { collection, query, where, getDocs, doc, updateDoc, addDoc, limit, startAfter, orderBy, Timestamp } from 'firebase/firestore'
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
-import { onAuthStateChanged } from 'firebase/auth'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { RefreshCw, Phone, Mail, Eye, FileText, Plus, Edit, User, Briefcase, MapPin, Star, Compass, Send, Check, X, ChevronLeft, ChevronRight, ClipboardList, FileQuestion, Wrench, MessageSquare, DollarSign, Search } from 'lucide-react'
+'use client';
+
+import React, { useEffect, useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import Link from 'next/link';
+import { auth, db, storage } from '@/lib/firebase';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { useToast } from "@/components/ui/use-toast"
-import { AutocompleteInput } from '@/components/AutocompleteInput'
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Progress } from "@/components/ui/progress"
+  collection, query, where, getDocs, doc, updateDoc, addDoc, limit, startAfter, orderBy, Timestamp
+} from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { onAuthStateChanged } from 'firebase/auth';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  RefreshCw, Phone, Mail, Eye, FileText, Plus, Edit, Briefcase, Wrench, MessageSquare, DollarSign, Search, Star, Check, X, ClipboardList, FileQuestion, Send
+} from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+} from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/use-toast";
+import { AutocompleteInput } from '@/components/AutocompleteInput';
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 
 interface FitterData {
-  id: string
-  company_name: string
-  email: string
-  fitter_first_name: string
-  fitter_last_name: string
-  fitter_address: string
-  phone: string
-  service_radius: number
-  fitter_rating: number
-  logo_url?: string
-  latitude: number
-  longitude: number
+  id: string;
+  company_name: string;
+  email: string;
+  fitter_first_name: string;
+  fitter_last_name: string;
+  fitter_address: string;
+  phone: string;
+  service_radius: number;
+  fitter_rating: number;
+  logo_url?: string;
+  latitude: number;
+  longitude: number;
 }
 
 interface SurveyRequest {
-  id: string
-  name: string
-  email: string
-  phone: string
-  address: string
-  message?: string
-  status: 'pending' | 'approved' | 'rejected'
-  created_at: Date
+  id: string;
+  created_at: Date;
+  quote_date: Date;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  status: string;
 }
 
 interface Quote {
-  id: string
-  customer_name: string
-  customer_address: string
-  customer_email: string
-  customer_phone: string
-  total_price: number
-  status: 'pending' | 'sent' | 'completed'
-  quote_date: Date
-  quote_number: string
-  stair_width: number
-  height_of_4_steps: number
-  length_of_4_steps: number
-  tread_depth: number
-  riser_height: number
-  install_price: number
-  color_option: string
-  drawer_option: string
-  handle_size: string
-  handle_color: string
-  additional_notes?: string
-  review_requested?: boolean
-  unit_paid?: boolean
-  install_paid?: boolean
-  installation_date?: Date
-  installation_status?: string
-  installer_notes?: string
+  id: string;
+  created_at: Date;
+  quote_date: Date;
+  customer_name: string;
+  customer_address: string;
+  customer_email: string;
+  customer_phone: string;
+  status: string;
+  installation_date?: Date;
+  review_requested?: boolean;
+  // Add other properties as needed
 }
 
 interface ReviewRequest {
-  id: string
-  customer_name: string
-  rating: number
-  comment: string
-  created_at: Date
-  status: 'pending' | 'approved' | 'rejected'
-  fitter_id: string
+  id: string;
+  created_at: Date;
+  quote_date: Date;
+  customer_name: string;
+  rating: number;
+  comment: string;
+  status: string;
+  fitter_id: string;
 }
 
 export default function FitterDashboard() {
-  const [fitterData, setFitterData] = useState<FitterData | null>(null)
-  const [surveyRequests, setSurveyRequests] = useState<SurveyRequest[]>([])
-  const [quotes, setQuotes] = useState<Quote[]>([])
-  const [reviewRequests, setReviewRequests] = useState<ReviewRequest[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [refreshing, setRefreshing] = useState(false)
-  const [editingProfile, setEditingProfile] = useState(false)
-  const [updatedFitterData, setUpdatedFitterData] = useState<FitterData | null>(null)
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [lastVisible, setLastVisible] = useState<any>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
-  const { toast } = useToast()
+  const [fitterData, setFitterData] = useState<FitterData | null>(null);
+  const [surveyRequests, setSurveyRequests] = useState<SurveyRequest[]>([]);
+  const [quotes, setQuotes] = useState<Quote[]>([]);
+  const [reviewRequests, setReviewRequests] = useState<ReviewRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [updatedFitterData, setUpdatedFitterData] = useState<FitterData | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
+  const { toast } = useToast();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        console.log("User authenticated:", user.email, user.uid)
-        fetchData(user)
+        console.log("User authenticated:", user.email, user.uid);
+        fetchData(user);
       } else {
-        console.log("No user authenticated")
-        setError('User not authenticated')
-        router.push('/login')
+        console.log("No user authenticated");
+        setError('User not authenticated');
+        router.push('/login');
       }
-    })
+    });
 
-    return () => unsubscribe()
-  }, [router])
+    return () => unsubscribe();
+  }, [router]);
 
   const fetchData = async (user: any) => {
     if (!user) {
-      setError('User not authenticated')
-      router.push('/login')
-      return
+      setError('User not authenticated');
+      router.push('/login');
+      return;
     }
 
     try {
-      setRefreshing(true)
-      console.log("Fetching fitter data for email:", user.email)
-      const fittersRef = collection(db, 'Fitters')
-      const q = query(fittersRef, where("email", "==", user.email))
-      const querySnapshot = await getDocs(q)
+      setRefreshing(true);
+      const fittersRef = collection(db, 'Fitters');
+      const q = query(fittersRef, where("email", "==", user.email));
+      const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        console.log("No fitter found for email:", user.email)
-        throw new Error('Fitter profile not found')
+        throw new Error('Fitter profile not found');
       }
 
-      const fitterDoc = querySnapshot.docs[0]
-      const data = { id: fitterDoc.id, ...fitterDoc.data() } as FitterData
-      console.log("Fitter data fetched:", data)
-      setFitterData(data)
-      setUpdatedFitterData(data)
-      await fetchSurveyRequests(data.id)
-      await fetchQuotes(data.id)
-      await fetchReviews(data.id)
+      const fitterDoc = querySnapshot.docs[0];
+      const data = { id: fitterDoc.id, ...fitterDoc.data() } as FitterData;
+      setFitterData(data);
+      setUpdatedFitterData(data);
+      await fetchSurveyRequests(data.id);
+      await fetchQuotes(data.id);
+      await fetchReviews(data.id);
     } catch (error) {
-      console.error('Error fetching data:', error)
-      setError(error instanceof Error ? error.message : 'An unknown error occurred')
+      setError(error instanceof Error ? error.message : 'An unknown error occurred');
       toast({
         title: "Error",
         description: `Failed to fetch data: ${error instanceof Error ? error.message : 'An unknown error occurred'}`,
         variant: "destructive",
-      })
+      });
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      setLoading(false);
+      setRefreshing(false);
     }
-  }
+  };
 
   const fetchSurveyRequests = async (fitterId: string) => {
     try {
-      console.log("Fetching survey requests for fitter ID:", fitterId)
-      const q = query(collection(db, 'SurveyRequests'), where('fitter_id', '==', fitterId), orderBy('created_at', 'desc'), limit(10))
-      const querySnapshot = await getDocs(q)
-      console.log("Survey requests query snapshot:", querySnapshot)
-      const requests: SurveyRequest[] = []
+      const q = query(collection(db, 'SurveyRequests'), where('fitter_id', '==', fitterId), orderBy('created_at', 'desc'), limit(10));
+      const querySnapshot = await getDocs(q);
+      const requests: SurveyRequest[] = [];
       querySnapshot.forEach((doc) => {
-        const data = doc.data()
+        const data = doc.data();
         requests.push({
           id: doc.id,
           ...data,
           created_at: data.created_at instanceof Timestamp ? data.created_at.toDate() : new Date(data.created_at),
-        } as SurveyRequest)
-      })
-      console.log("Fetched survey requests:", requests)
-      setSurveyRequests(requests)
-      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1])
+        } as SurveyRequest);
+      });
+      setSurveyRequests(requests);
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
     } catch (error) {
-      console.error('Error fetching survey requests:', error)
       toast({
         title: "Error",
         description: `Failed to fetch survey requests: ${error instanceof Error ? error.message : 'An unknown error occurred'}`,
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const fetchQuotes = async (fitterId: string) => {
     try {
-      console.log("Fetching quotes for fitter ID:", fitterId)
-      const q = query(collection(db, 'Quotes'), where('fitter_id', '==', fitterId), orderBy('quote_date', 'desc'), limit(10))
-      const querySnapshot = await getDocs(q)
-      console.log("Quotes query snapshot:", querySnapshot)
-      const fetchedQuotes: Quote[] = []
+      const q = query(collection(db, 'Quotes'), where('fitter_id', '==', fitterId), orderBy('quote_date', 'desc'), limit(10));
+      const querySnapshot = await getDocs(q);
+      const fetchedQuotes: Quote[] = [];
       querySnapshot.forEach((doc) => {
-        const data = doc.data()
+        const data = doc.data();
         fetchedQuotes.push({
           id: doc.id,
           ...data,
           quote_date: data.quote_date instanceof Timestamp ? data.quote_date.toDate() : new Date(data.quote_date),
           installation_date: data.installation_date instanceof Timestamp ? data.installation_date.toDate() : data.installation_date ? new Date(data.installation_date) : undefined,
-        } as Quote)
-      })
-      console.log("Fetched quotes:", fetchedQuotes)
-      setQuotes(fetchedQuotes)
-      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1])
+        } as Quote);
+      });
+      setQuotes(fetchedQuotes);
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
     } catch (error) {
-      console.error('Error fetching quotes:', error)
       toast({
         title: "Error",
         description: `Failed to fetch quotes: ${error instanceof Error ? error.message : 'An unknown error occurred'}`,
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const fetchReviews = async (fitterId: string) => {
     try {
-      console.log("Fetching review requests for fitter ID:", fitterId)
-      const q = query(collection(db, 'ReviewRequests'), where('fitter_id', '==', fitterId), orderBy('created_at', 'desc'), limit(10))
-      const querySnapshot = await getDocs(q)
-      console.log("Review requests query snapshot:", querySnapshot)
-      const fetchedReviewRequests: ReviewRequest[] = []
+      const q = query(collection(db, 'ReviewRequests'), where('fitter_id', '==', fitterId), orderBy('created_at', 'desc'), limit(10));
+      const querySnapshot = await getDocs(q);
+      const fetchedReviewRequests: ReviewRequest[] = [];
       querySnapshot.forEach((doc) => {
-        const data = doc.data()
+        const data = doc.data();
         fetchedReviewRequests.push({
           id: doc.id,
           ...data,
           created_at: data.created_at instanceof Timestamp ? data.created_at.toDate() : new Date(data.created_at),
-        } as ReviewRequest)
-      })
-      console.log("Fetched review requests:", fetchedReviewRequests)
-      setReviewRequests(fetchedReviewRequests)
-      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1])
+        } as ReviewRequest);
+      });
+      setReviewRequests(fetchedReviewRequests);
+      setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1]);
     } catch (error) {
-      console.error('Error fetching review requests:', error)
       toast({
         title: "Error",
         description: `Failed to fetch review requests: ${error instanceof Error ? error.message : 'An unknown error occurred'}`,
         variant: "destructive",
-      })
+      });
     }
-  }
-
-  const handleRefresh = () => {
-    const user = auth.currentUser
-    if (user) {
-      fetchData(user)
-    } else {
-      setError('User not authenticated. Please log in again.')
-      router.push('/login')
-    }
-  }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setLogoFile(e.target.files[0])
+      setLogoFile(e.target.files[0]);
     }
-  }
+  };
 
-  const uploadLogo = async (): Promise<string | null> => {
-    if (!logoFile || !fitterData) return null
+  const uploadLogo = async (): Promise<string | undefined> => {
+    if (!logoFile || !fitterData) return undefined;
 
-    const fileRef = ref(storage, `company_logos/${fitterData.id}/${logoFile.name}`)
-    await uploadBytes(fileRef, logoFile)
-    return getDownloadURL(fileRef)
-  }
+    const fileRef = ref(storage, `company_logos/${fitterData.id}/${logoFile.name}`);
+    await uploadBytes(fileRef, logoFile);
+    return await getDownloadURL(fileRef);
+  };
 
   const handleUpdateProfile = async () => {
-    if (!fitterData || !updatedFitterData) return
+    if (!fitterData || !updatedFitterData) return;
     try {
-      let logoUrl = updatedFitterData.logo_url
+      let logoUrl = updatedFitterData.logo_url;
 
       if (logoFile) {
-        logoUrl = await uploadLogo()
+        logoUrl = await uploadLogo();
       }
 
       const updatedData = {
         ...updatedFitterData,
         logo_url: logoUrl,
-      }
+      };
 
-      await updateDoc(doc(db, 'Fitters', fitterData.id), updatedData)
-      setFitterData(updatedData)
-      setEditingProfile(false)
+      await updateDoc(doc(db, 'Fitters', fitterData.id), updatedData);
+      setFitterData(updatedData);
+      setEditingProfile(false);
       toast({
         title: "Profile Updated",
         description: "Your fitter profile has been successfully updated.",
-      })
+      });
     } catch (error) {
-      console.error('Error updating profile:', error)
       toast({
         title: "Update Failed",
         description: "Failed to update your profile. Please try again.",
@@ -462,11 +421,11 @@ export default function FitterDashboard() {
       setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1])
 
       if (type === 'surveys') {
-        setSurveyRequests(prev => [...prev, ...newData])
+        setSurveyRequests(prev => [...prev, ...newData as SurveyRequest[]])
       } else if (type === 'quotes') {
-        setQuotes(prev => [...prev, ...newData])
+        setQuotes(prev => [...prev, ...newData as Quote[]])
       } else {
-        setReviewRequests(prev => [...prev, ...newData])
+        setReviewRequests(prev => [...prev, ...newData as ReviewRequest[]])
       }
     } catch (error) {
       console.error(`Error fetching more ${type}:`, error)
@@ -487,6 +446,10 @@ export default function FitterDashboard() {
       )
     )
   }, [])
+
+  const handleRefresh = () => {
+    // Implement your refresh logic here
+  };
 
   if (loading) {
     return <div className="flex justify-center items-center h-screen bg-gray-900 text-white">Loading...</div>
@@ -768,7 +731,7 @@ export default function FitterDashboard() {
                         <CardHeader>
                           <div className="flex justify-between items-center">
                             <CardTitle className="text-lg">{quote.customer_name}</CardTitle>
-                            <Badge variant={quote.status === 'pending' ? 'secondary' : quote.status === 'sent' ? 'primary' : 'success'}>
+                            <Badge variant={quote.status === 'pending' ? 'secondary' : quote.status === 'sent' ? 'default' : 'success'}>
                               {quote.status}
                             </Badge>
                           </div>
@@ -1117,11 +1080,12 @@ export default function FitterDashboard() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="address" className="text-right">Address</Label>
               <AutocompleteInput
-                id="address"
                 value={updatedFitterData?.fitter_address || ''}
-                onChange={(e) => setUpdatedFitterData(prev => ({ ...prev!, fitter_address: e.target.value }))}
-                onPlaceSelected={handleAddressUpdate}
-                className="col-span-3 bg-gray-700"
+                onChange={(value: string) => setUpdatedFitterData(prev => ({ ...prev!, fitter_address: value }))}
+                onPlaceSelected={(place: { formatted_address: string; latitude: number; longitude: number; }) => {
+                  // Handle place selection
+                }}
+                className="w-full"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">

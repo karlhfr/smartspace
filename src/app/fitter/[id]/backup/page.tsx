@@ -215,11 +215,7 @@ export default function FitterProfilePage() {
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
-                          className={`w-5 h-5 ${
-                            i < Math.round(fitter.fitter_rating)
-                              ? 'text-yellow-400 fill-yellow-400'
-                              : 'text-gray-300'
-                          }`}
+                          className={i < Math.round(fitter.fitter_rating || 0) ? 'text-yellow-400' : 'text-gray-300'}
                         />
                       ))}
                     </div>

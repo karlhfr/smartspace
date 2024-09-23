@@ -1,34 +1,38 @@
 // src/lib/notifications.ts
-import { db } from './firebase';
-import { sendEmail } from './emailService'; // You'll need to implement this
+import { db, collection, doc, getDocs, query, where, Firestore, addDoc, serverTimestamp } from './firebase';
+import { getDoc, orderBy } from 'firebase/firestore';
+// Remove or comment out the emailService import if it's not implemented yet
+// import { sendEmail } from './emailService';
 
-export async function createNotification(userId: string, message: string, type: 'survey' | 'quote' | 'message') {
-  const notificationRef = db.collection('notifications').doc();
-  await notificationRef.set({
+export async function createNotification(userId: string, message: string) {
+  const notificationRef = collection(db as Firestore, 'notifications');
+  await addDoc(notificationRef, {
     userId,
     message,
-    type,
-    createdAt: new Date(),
-    read: false
+    read: false,
+    createdAt: serverTimestamp(),
   });
 
-  // Send email notification
-  const user = await db.collection('users').doc(userId).get();
-  const userEmail = user.data()?.email;
-  if (userEmail) {
-    await sendEmail(userEmail, 'New Notification', message);
-  }
+  // Fetch user's email
+  const userDoc = await getDoc(doc(db as Firestore, 'users', userId));
+  const userEmail = userDoc.data()?.email;
+
+  // Uncomment this when you have implemented the email service
+  // if (userEmail) {
+  //   await sendEmail(userEmail, 'New Notification', message);
+  // }
 }
 
 export async function getNotifications(userId: string) {
-  const snapshot = await db.collection('notifications')
-    .where('userId', '==', userId)
-    .orderBy('createdAt', 'desc')
-    .limit(20)
-    .get();
+  const notificationsQuery = query(
+    collection(db as Firestore, 'notifications'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc')
+  );
 
-  return snapshot.docs.map(doc => ({
+  const snapshot = await getDocs(notificationsQuery);
+  return snapshot.docs.map((doc) => ({
     id: doc.id,
-    ...doc.data()
+    ...doc.data(),
   }));
 }

@@ -4,8 +4,13 @@ import { Bell } from 'lucide-react';
 import { getNotifications } from '@/lib/notifications';
 import { useAuth } from '@/contexts/AuthContext';
 
+interface Notification {
+  id: string;
+  read: boolean;
+}
+
 export function NotificationBell() {
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const { user } = useAuth();
 
@@ -13,8 +18,8 @@ export function NotificationBell() {
     if (user) {
       const fetchNotifications = async () => {
         const fetchedNotifications = await getNotifications(user.uid);
-        setNotifications(fetchedNotifications);
-        setUnreadCount(fetchedNotifications.filter(n => !n.read).length);
+        setNotifications(fetchedNotifications as Notification[]);
+        setUnreadCount((fetchedNotifications as Notification[]).filter(n => !n.read).length);
       };
       fetchNotifications();
     }

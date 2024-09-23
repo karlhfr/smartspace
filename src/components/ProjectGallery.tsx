@@ -3,13 +3,20 @@ import React, { useState, useEffect } from 'react';
 import { getFitterProjects } from '@/lib/projects';
 import Image from 'next/image';
 
-export function ProjectGallery({ fitterId }) {
-  const [projects, setProjects] = useState([]);
+interface Project {
+  id: string;
+  imageUrl: string;
+  title: string;
+  description: string;
+}
+
+export function ProjectGallery({ fitterId }: { fitterId: string }) {
+  const [projects, setProjects] = useState<Project[]>([]);
 
   useEffect(() => {
     const fetchProjects = async () => {
       const fetchedProjects = await getFitterProjects(fitterId);
-      setProjects(fetchedProjects);
+      setProjects(fetchedProjects as Project[]);
     };
     fetchProjects();
   }, [fitterId]);

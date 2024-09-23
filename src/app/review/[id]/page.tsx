@@ -17,13 +17,14 @@ interface FitterDetails {
   email: string;
   company_name: string;
   uid: string;
+  // Add other properties as needed
 }
 
 export default function ReviewPage() {
-  const { id } = useParams()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const fitterId = searchParams.get('fitter')
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const id = params?.id as string;
+  const fitterId = searchParams?.get('fitter');
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [rating, setRating] = useState(0)
@@ -32,6 +33,7 @@ export default function ReviewPage() {
   const [fitterDetails, setFitterDetails] = useState<FitterDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const { toast } = useToast()
+  const router = useRouter()
 
   useEffect(() => {
     const fetchFitterDetails = async () => {
@@ -43,7 +45,7 @@ export default function ReviewPage() {
         const details = await getFitterDetails(fitterId)
         if (details) {
           console.log('Fitter details fetched:', details)
-          setFitterDetails(details)
+          setFitterDetails(details as FitterDetails);
         } else {
           throw new Error('Fitter not found')
         }

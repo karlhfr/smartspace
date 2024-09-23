@@ -7,6 +7,7 @@ import { storage, db, auth } from '@/lib/firebase'
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { Plus, Loader2 } from 'lucide-react'
+import { User } from 'firebase/auth';
 
 interface LogoUploadProps {
   fitterId: string
@@ -16,7 +17,7 @@ interface LogoUploadProps {
 
 export function LogoUpload({ fitterId, currentLogo, onLogoUpdate }: LogoUploadProps) {
   const [uploading, setUploading] = useState(false)
-  const [user, setUser] = useState(null)
+  const [user, setUser] = useState<User | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { toast } = useToast()
 
@@ -68,11 +69,11 @@ export function LogoUpload({ fitterId, currentLogo, onLogoUpdate }: LogoUploadPr
       console.error("Error uploading logo:", error)
       let errorMessage = "There was an error uploading your logo. Please try again."
       
-      if (error.code === 'storage/unauthorized') {
+      if ((error as any).code === 'storage/unauthorized') {
         errorMessage = "You don't have permission to upload files. Please check your authentication."
-      } else if (error.code === 'storage/canceled') {
+      } else if ((error as any).code === 'storage/canceled') {
         errorMessage = "Upload was canceled. Please try again."
-      } else if (error.code === 'storage/unknown') {
+      } else if ((error as any).code === 'storage/unknown') {
         errorMessage = "An unknown error occurred. Please try again later."
       }
       

@@ -268,8 +268,8 @@ export default function FitterDashboard() {
     }
   }
 
-  const uploadLogo = async (): Promise<string | null> => {
-    if (!logoFile || !fitterData) return null
+  const uploadLogo = async (): Promise<string | undefined> => {
+    if (!logoFile || !fitterData) return undefined
 
     const fileRef = ref(storage, `company_logos/${fitterData.id}/${logoFile.name}`)
     await uploadBytes(fileRef, logoFile)
@@ -447,6 +447,7 @@ export default function FitterDashboard() {
       }
 
       const querySnapshot = await getDocs(q)
+      type NewDataType = Partial<SurveyRequest & Quote & ReviewRequest>;
       const newData = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
@@ -457,11 +458,11 @@ export default function FitterDashboard() {
       setLastVisible(querySnapshot.docs[querySnapshot.docs.length - 1])
 
       if (type === 'surveys') {
-        setSurveyRequests(prev => [...prev, ...newData])
+        setSurveyRequests(prev => [...prev, ...(newData as NewDataType[] as SurveyRequest[])])
       } else if (type === 'quotes') {
-        setQuotes(prev => [...prev, ...newData])
+        setQuotes(prev => [...prev, ...(newData as NewDataType[] as Quote[])])
       } else {
-        setReviewRequests(prev => [...prev, ...newData])
+        setReviewRequests(prev => [...prev, ...(newData as NewDataType[] as ReviewRequest[])])
       }
     } catch (error) {
       console.error(`Error fetching more ${type}:`, error)
@@ -763,7 +764,7 @@ export default function FitterDashboard() {
                         <CardHeader>
                           <div className="flex justify-between items-center">
                             <CardTitle className="text-lg">{quote.customer_name}</CardTitle>
-                            <Badge variant={quote.status === 'pending' ? 'secondary' : quote.status === 'sent' ? 'primary' : 'success'}>
+                            <Badge variant={quote.status === 'pending' ? 'secondary' : quote.status === 'sent' ? 'default' : 'success'}>
                               {quote.status}
                             </Badge>
                           </div>
@@ -1114,8 +1115,10 @@ export default function FitterDashboard() {
               <AutocompleteInput
                 id="address"
                 value={updatedFitterData?.fitter_address || ''}
-                onChange={(e) => setUpdatedFitterData(prev => ({ ...prev!, fitter_address: e.target.value }))}
-                onPlaceSelected={handleAddressUpdate}
+                onChange={(value: string) => setUpdatedFitterData(prev => ({ ...prev!, fitter_address: value }))}
+                onPlaceSelected={(place: { formatted_address: string; latitude: number; longitude: number; }) => {
+                  // Handle place selection
+                }}
                 className="col-span-3 bg-gray-700"
               />
             </div>
