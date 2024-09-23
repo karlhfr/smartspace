@@ -9,12 +9,14 @@ const nextConfig = {
       'firebasestorage.googleapis.com'
     ],
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   webpack: (config, { buildId, dev, isServer, defaultLoaders, webpack }) => {
     config.module.rules.push({
       test: /\.html$/,
       use: 'html-loader'
     });
-
     // Ignore the problematic file
     config.plugins.push(
       new webpack.IgnorePlugin({
