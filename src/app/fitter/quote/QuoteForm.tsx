@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Loader2, Save } from 'lucide-react'
 import { useToast } from "@/components/ui/use-toast"
 import { db } from '@/lib/firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, setDoc } from 'firebase/firestore'
 
 const BASE_UNIT_PRICE = 790
 
@@ -30,7 +30,7 @@ const drawerOptions = [
   { id: 'extended', name: 'Extended Drawer', price: 125 },
 ]
 
-function QuoteForm() {
+export default function QuoteForm() {
   const [quoteNumber, setQuoteNumber] = useState('')
   const [customerName, setCustomerName] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
@@ -52,50 +52,30 @@ function QuoteForm() {
   const { toast } = useToast()
 
   const searchParams = useSearchParams()
-  const surveyId = searchParams.get('id')
 
   useEffect(() => {
-    // Log the surveyId to ensure it is being fetched correctly
-    console.log('Survey ID from URL:', surveyId)
-
-    // Generate a unique quote number
     setQuoteNumber(`Q${Date.now().toString().slice(-6)}`)
 
-    if (surveyId) {
-      // Fetch survey data from Firebase
-      const fetchSurveyData = async () => {
-        try {
-          const surveyDoc = await getDoc(doc(db, 'SurveyRequests', surveyId))
-          if (surveyDoc.exists()) {
-            const surveyData = surveyDoc.data()
-            console.log('Fetched survey data:', surveyData) // Log the fetched data
-            setCustomerName(surveyData.name)
-            setCustomerEmail(surveyData.email)
-            setCustomerPhone(surveyData.phone)
-            setCustomerAddress(surveyData.address)
-          } else {
-            toast({
-              title: "Error",
-              description: "Survey data not found.",
-              variant: "destructive",
-            })
-          }
-        } catch (error) {
-          console.error('Error fetching survey data:', error)
-          toast({
-            title: "Error",
-            description: "Failed to fetch survey data.",
-            variant: "destructive",
-          })
-        }
+    const encodedCustomerData = searchParams.get('customerData')
+    if (encodedCustomerData) {
+      try {
+        const customerData = JSON.parse(decodeURIComponent(encodedCustomerData))
+        setCustomerName(customerData.name)
+        setCustomerEmail(customerData.email)
+        setCustomerPhone(customerData.phone)
+        setCustomerAddress(customerData.address)
+      } catch (error) {
+        console.error('Error parsing customer data:', error)
+        toast({
+          title: "Error",
+          description: "Failed to load customer data.",
+          variant: "destructive",
+        })
       }
-
-      fetchSurveyData()
     }
-  }, [surveyId, toast])
+  }, [searchParams, toast])
 
   useEffect(() => {
-    // Calculate total price whenever options change
     const colorPrice = colorOptions.find(c => c.id === unitColor)?.price || 0
     const drawerPrice = drawerOptions.find(d => d.id === drawerOption)?.price || 0
     const installTotal = parseFloat(installPrice) || 0
@@ -106,20 +86,47 @@ function QuoteForm() {
     event.preventDefault()
     setIsLoading(true)
 
-    // Here you would typically send the quote data to your backend
-    // The backend would:
-    // 1. Associate the fitter ID with this quote
-    // 2. Associate the customer ID (if available from a survey)
-    // 3. Save all the quote data, including measurements and options
+    try {
+      const quoteData = {
+        quote_number: quoteNumber,
+        customer_name: customerName,
+        customer_email: customerEmail,
+        customer_phone: customerPhone,
+        customer_address: customerAddress,
+        width: parseFloat(width),
+        height: parseFloat(height),
+        length: parseFloat(length),
+        tread_depth: parseFloat(treadDepth),
+        riser_height: parseFloat(riserHeight),
+        unit_color: unitColor,
+        handle_width: handleWidth,
+        handle_color: handleColor,
+        drawer_option: drawerOption,
+        install_price: parseFloat(installPrice) || 0,
+        additional_notes: additionalNotes,
+        total_price: totalPrice,
+        status: 'pending',
+        created_at: new Date(),
+      }
 
-    // Simulating an API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
+      await setDoc(doc(db, 'Quotes', quoteNumber), quoteData)
 
-    setIsLoading(false)
-    toast({
-      title: "Quote Saved",
-      description: "The quote has been successfully saved and sent to the customer.",
-    })
+      toast({
+        title: "Quote Saved",
+        description: "The quote has been successfully saved.",
+      })
+
+      // Reset form or redirect to another page
+    } catch (error) {
+      console.error('Error saving quote:', error)
+      toast({
+        title: "Error",
+        description: "Failed to save the quote. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -174,7 +181,7 @@ function QuoteForm() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="width">Width (between stringers)</Label>
+                <Label htmlFor="width">Width (mm)</Label>
                 <Input
                   id="width"
                   type="number"
@@ -184,7 +191,7 @@ function QuoteForm() {
                 />
               </div>
               <div>
-                <Label htmlFor="height">Height (4 steps)</Label>
+                <Label htmlFor="height">Height (mm)</Label>
                 <Input
                   id="height"
                   type="number"
@@ -194,7 +201,7 @@ function QuoteForm() {
                 />
               </div>
               <div>
-                <Label htmlFor="length">Length (4 steps)</Label>
+                <Label htmlFor="length">Length (mm)</Label>
                 <Input
                   id="length"
                   type="number"
@@ -204,7 +211,7 @@ function QuoteForm() {
                 />
               </div>
               <div>
-                <Label htmlFor="treadDepth">Tread Depth</Label>
+                <Label htmlFor="treadDepth">Tread Depth (mm)</Label>
                 <Input
                   id="treadDepth"
                   type="number"
@@ -214,7 +221,7 @@ function QuoteForm() {
                 />
               </div>
               <div>
-                <Label htmlFor="riserHeight">Riser Height</Label>
+                <Label htmlFor="riserHeight">Riser Height (mm)</Label>
                 <Input
                   id="riserHeight"
                   type="number"
@@ -289,13 +296,12 @@ function QuoteForm() {
             </div>
 
             <div>
-              <Label htmlFor="installPrice">Installation Price</Label>
+              <Label htmlFor="installPrice">Installation Price (£)</Label>
               <Input
                 id="installPrice"
                 type="number"
                 value={installPrice}
                 onChange={(e) => setInstallPrice(e.target.value)}
-                required
               />
             </div>
 
@@ -329,16 +335,6 @@ function QuoteForm() {
           </form>
         </CardContent>
       </Card>
-      {surveyId && (
-        <div className="mt-4 p-4 bg-gray-800 text-white rounded">
-          <h2 className="text-xl font-bold">Fetched Survey Data</h2>
-          <p><strong>Survey ID:</strong> {surveyId}</p>
-          <p><strong>Customer Name:</strong> {customerName}</p>
-          <p><strong>Customer Email:</strong> {customerEmail}</p>
-          <p><strong>Customer Phone:</strong> {customerPhone}</p>
-          <p><strong>Customer Address:</strong> {customerAddress}</p>
-        </div>
-      )}
     </div>
   )
 }

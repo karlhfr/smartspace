@@ -12,14 +12,37 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { RefreshCw, Phone, Mail, Eye, FileText, Plus, Edit, User, Briefcase, MapPin, Star, Compass, Send, Check, X, ChevronLeft, ChevronRight, ClipboardList, FileQuestion, Wrench, MessageSquare, DollarSign, Search } from 'lucide-react';
-
-
+import { 
+  RefreshCw, 
+  Phone, 
+  Mail, 
+  Eye, 
+  FileText, 
+  Plus, 
+  Edit, 
+  User, 
+  Briefcase, 
+  MapPin, 
+  Star, 
+  Compass, 
+  Send,   // <-- Add this line
+  Check, 
+  X, 
+  ChevronLeft, 
+  ChevronRight, 
+  ClipboardList, 
+  FileQuestion, 
+  Wrench, 
+  MessageSquare, 
+  DollarSign, 
+  Search 
+} from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/components/ui/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
+
 
 interface FitterData {
   id: string
@@ -240,45 +263,38 @@ export default function FitterDashboard() {
   }
 
   // Fetch Installs data based on fitter_id
-const fetchInstalls = async (fitterId: string) => {
-  try {
-    console.log("Fetching installs for fitter ID:", fitterId);
-    
-    const q = query(
-      collection(db, 'Installs'),
-      where('fitter_id', '==', fitterId),
-      orderBy('completion_date', 'desc'),
-      limit(10)
-    );
-    
-    const querySnapshot = await getDocs(q);
-    const installs = [];
+  const fetchInstalls = async (fitterId: string) => {
+    try {
+      const q = query(
+        collection(db, 'Installs'),
+        where('fitter_id', '==', fitterId),
+        orderBy('completion_date', 'desc'),
+        limit(10)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      const installs: Install[] = [];
 
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      installs.push({
-        id: doc.id,
-        ...data,
-        completion_date: data.completion_date.toDate(), // Ensure timestamp is converted to JS Date
-        quote_date: data.quote_date.toDate(),           // Convert Firestore timestamp to Date
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        installs.push({
+          id: doc.id,
+          ...data,
+          completion_date: data.completion_date.toDate(), // Ensure timestamp is converted to JS Date
+          quote_date: data.quote_date.toDate(),           // Convert Firestore timestamp to Date
+        });
       });
-    });
 
-    console.log("Fetched installs:", installs);
-    return installs;
-
-  } catch (error) {
-    console.error("Error fetching installs:", error);
-
-    // Check if it's a missing Firestore index error and log the link for creating an index
-    if (error instanceof Error && error.message.includes('index')) {
-      console.error("Missing Firestore index. Please follow the link to set it up:", error.message);
+      setInstalls(installs);
+      console.log("Fetched installs:", installs);
+    } catch (error) {
+      console.error("Error fetching installs:", error);
+      // Check if it's a missing Firestore index error and log the link for creating an index
+      if (error instanceof Error && error.message.includes('index')) {
+        console.error("Missing Firestore index. Please follow the link to set it up:", error.message);
+      }
     }
   }
-};
-
-
-
 
   const handleRefresh = () => {
     const user = auth.currentUser
@@ -290,31 +306,29 @@ const fetchInstalls = async (fitterId: string) => {
     }
   }
 
-  const handleReviewAction = async (reviewId: string, action: 'approve' | 'reject', fitter_id: string) => {
-  try {
-    const reviewRef = doc(db, 'ReviewRequests', reviewId) // Reference to the review in Firestore
-    await updateDoc(reviewRef, {
-      status: action === 'approve' ? 'approved' : 'rejected'
-    }) // Update the status field
+  const handleReviewAction = async (reviewId: string, action: 'approve' | 'reject') => {
+    try {
+      const reviewRef = doc(db, 'ReviewRequests', reviewId)
+      await updateDoc(reviewRef, {
+        status: action === 'approve' ? 'approved' : 'rejected'
+      })
 
-    toast({
-      title: `Review ${action}d successfully`,
-      description: `The review has been ${action}d.`,
-      variant: 'success',
-    })
+      toast({
+        title: `Review ${action}d successfully`,
+        description: `The review has been ${action}d.`,
+        variant: 'success',
+      })
 
-    // Refresh reviews after approving/rejecting
-    await fetchReviews(fitter_id) // Fetch reviews based on fitter_id
-  } catch (error) {
-    console.error(`Error ${action}ing review:`, error)
-    toast({
-      title: "Error",
-      description: `Failed to ${action} the review. Please try again.`,
-      variant: "destructive",
-    })
+      await fetchReviews(fitterData?.fitter_id ?? '') // Fetch reviews based on fitter_id
+    } catch (error) {
+      console.error(`Error ${action}ing review:`, error)
+      toast({
+        title: "Error",
+        description: `Failed to ${action} the review. Please try again.`,
+        variant: "destructive",
+      })
+    }
   }
-}
-
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -359,17 +373,22 @@ const fetchInstalls = async (fitterId: string) => {
     }
   }
 
-  const handleAddressUpdate = (place: { formatted_address: string; latitude: number; longitude: number }) => {
-    setUpdatedFitterData(prev => {
-      if (!prev) return null
-      return {
-        ...prev,
-        fitter_address: place.formatted_address,
-        latitude: place.latitude,
-        longitude: place.longitude,
+    // Add this function near the other handler functions
+    const handleCreateQuote = (customerData: SurveyRequest) => {
+      const quoteData = {
+        id: customerData.id,
+        name: customerData.name,
+        email: customerData.email,
+        phone: customerData.phone,
+        address: customerData.address
       }
-    })
-  }
+      
+      // Encode the customer data as a URL-safe string
+      const encodedCustomerData = encodeURIComponent(JSON.stringify(quoteData))
+      
+      // Navigate to the quote form with the customer data
+      router.push(`/fitter/quote?customerData=${encodedCustomerData}`)
+    }
 
   const fetchMoreData = async (type: 'surveys' | 'quotes' | 'reviews') => {
     if (!fitterData || isLoading) return
@@ -379,7 +398,7 @@ const fetchInstalls = async (fitterId: string) => {
       if (type === 'surveys') {
         q = query(
           collection(db, 'SurveyRequests'),
-          where('fitter_id', '==', fitterData.id),
+          where('fitter_id', '==', fitterData.fitter_id),
           orderBy('created_at', 'desc'),
           startAfter(lastVisible),
           limit(10)
@@ -387,7 +406,7 @@ const fetchInstalls = async (fitterId: string) => {
       } else if (type === 'quotes') {
         q = query(
           collection(db, 'Quotes'),
-          where('fitter_id', '==', fitterData.id),
+          where('fitter_id', '==', fitterData.fitter_id),
           orderBy('quote_date', 'desc'),
           startAfter(lastVisible),
           limit(10)
@@ -395,7 +414,7 @@ const fetchInstalls = async (fitterId: string) => {
       } else {
         q = query(
           collection(db, 'ReviewRequests'),
-          where('fitter_id', '==', fitterData.id),
+          where('fitter_id', '==', fitterData.fitter_id),
           orderBy('created_at', 'desc'),
           startAfter(lastVisible),
           limit(10)
@@ -593,6 +612,7 @@ const fetchInstalls = async (fitterId: string) => {
             </TabsTrigger>
           </TabsList>
 
+          {/* Survey content */}
           <TabsContent value="surveys">
             <Card className="bg-gray-800 text-white">
               <CardHeader>
@@ -663,7 +683,7 @@ const fetchInstalls = async (fitterId: string) => {
                                   </div>
                                 </DialogContent>
                               </Dialog>
-                              <Button onClick={() => router.push(`/fitter/quote?id=${request.id}`)} size="sm">
+                              <Button onClick={() => handleCreateQuote(request)} size="sm">
                                 <FileText className="mr-2 h-4 w-4" />
                                 Quote
                               </Button>
@@ -683,6 +703,7 @@ const fetchInstalls = async (fitterId: string) => {
             </Card>
           </TabsContent>
 
+          {/* Quotes content */}
           <TabsContent value="quotes">
             <Card className="bg-gray-800 text-white">
               <CardHeader>
@@ -807,6 +828,7 @@ const fetchInstalls = async (fitterId: string) => {
             </Card>
           </TabsContent>
 
+          {/* Reviews content */}
           <TabsContent value="reviews">
             <Card className="bg-gray-800 text-white">
               <CardHeader>
@@ -880,6 +902,42 @@ const fetchInstalls = async (fitterId: string) => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Profile Dialog */}
+        <Dialog open={editingProfile} onOpenChange={setEditingProfile}>
+          <DialogTrigger asChild>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Fitter Profile</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-1 gap-2">
+                <Label>Company Name</Label>
+                <Input value={updatedFitterData?.company_name || ''} readOnly />
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <Label>Service Radius (km)</Label>
+                <Input
+                  value={updatedFitterData?.service_radius || ''}
+                  onChange={(e) =>
+                    setUpdatedFitterData((prev) => prev && { ...prev, service_radius: +e.target.value })
+                  }
+                />
+              </div>
+              <div className="grid grid-cols-1 gap-2">
+                <Label>Change Logo</Label>
+                <Input type="file" onChange={handleFileChange} accept="image/*" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setEditingProfile(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdateProfile}>Save Changes</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

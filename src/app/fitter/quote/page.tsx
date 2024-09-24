@@ -1,18 +1,10 @@
 'use client'
 
 import React, { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import QuoteForm from './QuoteForm';
 
 function QuotePage() {
-  const searchParams = useSearchParams();
-
-  // Your component logic here
-
-  return (
-    <div>
-      {/* Your component JSX here */}
-    </div>
-  );
+  return <QuoteForm />;
 }
 
 export default function Page() {
