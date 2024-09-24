@@ -1,9 +1,8 @@
-// src/app/fitter-dashboard/manage-profile/page.tsx
 'use client'
 
 import React, { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
-import { createProject, getFitterProjects, Project } from '@/lib/projects'
+import { createProject, getFitterProjects, Project } from '@/lib/projects' // Update your createProject function accordingly
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -11,9 +10,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import Image from 'next/image'
+import { collection, query, where, getDocs, addDoc } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 
 export default function ManageProfile() {
   const { user } = useAuth()
+  const [fitterId, setFitterId] = useState<string | null>(null)
   const [projects, setProjects] = useState<Project[] | null>(null)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -24,29 +26,56 @@ export default function ManageProfile() {
 
   useEffect(() => {
     if (user?.email) {
-      fetchProjects()
+      fetchFitterIdAndProjects()
     } else {
       setIsLoading(false)
       setError('User not authenticated')
     }
   }, [user])
 
-  const fetchProjects = async () => {
-    if (user?.email) {
+  // Fetch fitter_id from 'Fitters' collection based on user's email
+  const fetchFitterIdAndProjects = async () => {
+    try {
       setIsLoading(true)
-      setError(null)
-      try {
-        console.log('Fetching projects for user:', user.email);
-        const fetchedProjects = await getFitterProjects(user.email)
-        console.log('Fetched projects:', fetchedProjects);
-        setProjects(fetchedProjects)
-      } catch (err) {
-        console.error('Error fetching projects:', err)
-        setError(`Failed to load projects: ${err instanceof Error ? err.message : 'Unknown error'}`)
-        setProjects([])
-      } finally {
-        setIsLoading(false)
+      const q = query(collection(db, 'Fitters'), where("email", "==", user?.email))
+      const querySnapshot = await getDocs(q)
+
+      if (!querySnapshot.empty) {
+        const fitterDoc = querySnapshot.docs[0]
+        const fetchedFitterId = fitterDoc.data().fitter_id
+        setFitterId(fetchedFitterId)
+        fetchProjects(fetchedFitterId) // Fetch projects based on fitter_id
+      } else {
+        setError('Fitter ID not found')
       }
+    } catch (err) {
+      setError(`Failed to fetch fitter data: ${err instanceof Error ? err.message : 'Unknown error'}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Fetch projects by fitter_id from 'projects' collection
+  const fetchProjects = async (fitter_id: string) => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const q = query(collection(db, 'projects'), where('fitter_id', '==', fitter_id)) // Fetch projects where fitter_id matches
+      const querySnapshot = await getDocs(q)
+      const fetchedProjects: Project[] = []
+      querySnapshot.forEach((doc) => {
+        fetchedProjects.push({
+          id: doc.id,
+          ...doc.data(),
+        } as Project)
+      })
+      setProjects(fetchedProjects)
+    } catch (err) {
+      console.error('Error fetching projects:', err)
+      setError(`Failed to load projects: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      setProjects([])
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -58,10 +87,10 @@ export default function ManageProfile() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!user?.email) {
+    if (!fitterId) {
       toast({
         title: "Error",
-        description: "User not authenticated.",
+        description: "Fitter ID not found.",
         variant: "destructive",
       })
       return
@@ -78,7 +107,13 @@ export default function ManageProfile() {
 
     setIsUploading(true)
     try {
-      await createProject(user.email, title, description, image)
+      // Save the new project to 'projects' collection with fitter_id
+      await addDoc(collection(db, 'projects'), {
+        fitter_id: fitterId, // Add fitter_id to the project document
+        title,
+        description,
+        imageUrl: image ? URL.createObjectURL(image) : '', // Save image (ideally, you should upload it to a storage service)
+      })
       toast({
         title: "Success",
         description: "Project added successfully!",
@@ -86,7 +121,7 @@ export default function ManageProfile() {
       setTitle('')
       setDescription('')
       setImage(null)
-      fetchProjects()
+      fetchProjects(fitterId) // Refetch projects after adding a new one
     } catch (error) {
       console.error('Error adding project:', error)
       toast({
@@ -137,10 +172,6 @@ export default function ManageProfile() {
         ))}
       </div>
     )
-  }
-
-  if (!user) {
-    return <div className="container mx-auto px-4 py-8">Please log in to manage your profile.</div>
   }
 
   return (

@@ -12,12 +12,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 
+// Define the structure for Project and Review data
 interface Project {
   id: string
   title: string
   description: string
   imageUrl: string
   createdAt: Date
+  fitter_id: string // fitter_id field for matching
 }
 
 interface Review {
@@ -27,12 +29,11 @@ interface Review {
   comment: string
   created_at: Date
   status: 'approved' | 'pending' | 'rejected'
-  fitter_id: string
+  fitter_id: string // fitter_id field for matching
 }
 
 interface Fitter {
-  id: string
-  uid: string
+  fitter_id: string // fitter_id used across collections
   company_name: string
   email: string
   fitter_first_name: string
@@ -48,16 +49,18 @@ interface Fitter {
 }
 
 export default function FitterProfilePage() {
-  const [fitter, setFitter] = useState<Fitter | null>(null)
-  const [projects, setProjects] = useState<Project[]>([])
-  const [reviews, setReviews] = useState<Review[]>([])
-  const [loading, setLoading] = useState(true)
-  const [currentReviewIndex, setCurrentReviewIndex] = useState(0)
-  const params = useParams()
-  const id = params?.id as string
-  const router = useRouter()
-  const { toast } = useToast()
+  // Set up state variables
+  const [fitter, setFitter] = useState<Fitter | null>(null) // Store fitter data
+  const [projects, setProjects] = useState<Project[]>([]) // Store projects data
+  const [reviews, setReviews] = useState<Review[]>([]) // Store reviews data
+  const [loading, setLoading] = useState(true) // Track loading state
+  const [currentReviewIndex, setCurrentReviewIndex] = useState(0) // Track current review in pagination
+  const params = useParams() // Get dynamic parameters from the URL
+  const id = params?.id as string // Extract the id from the URL
+  const router = useRouter() // Navigation hook for programmatic routing
+  const { toast } = useToast() // Toast notifications hook
 
+  // Fetch fitter, project, and review data based on the fitter's 'id' and 'fitter_id'
   useEffect(() => {
     const fetchFitterAndProjects = async () => {
       if (!id) {
@@ -67,15 +70,15 @@ export default function FitterProfilePage() {
       }
 
       try {
-        // Fetch fitter data
+        // Fetch fitter data using 'id' from the URL
         const fitterDoc = await getDoc(doc(db, 'Fitters', id))
         if (fitterDoc.exists()) {
           const fitterData = { id: fitterDoc.id, ...fitterDoc.data() } as Fitter
           setFitter(fitterData)
           console.log('Fitter data fetched successfully:', fitterData)
 
-          // Fetch projects data using fitter's email
-          const projectsQuery = query(collection(db, 'projects'), where('fitterEmail', '==', fitterData.email))
+          // Fetch projects based on 'fitter_id' from the fetched fitter data
+          const projectsQuery = query(collection(db, 'projects'), where('fitter_id', '==', fitterData.fitter_id))
           const projectsSnapshot = await getDocs(projectsQuery)
           const projectsData = projectsSnapshot.docs.map(doc => ({
             id: doc.id,
@@ -85,14 +88,14 @@ export default function FitterProfilePage() {
           setProjects(projectsData)
           console.log('Projects data fetched successfully:', projectsData)
 
-          // Fetch reviews data using fitter's id
-          const reviewsQuery = query(collection(db, 'ReviewRequests'), where('fitter_id', '==', fitterData.id))
+          // Fetch reviews based on 'fitter_id' from the fetched fitter data
+          const reviewsQuery = query(collection(db, 'ReviewRequests'), where('fitter_id', '==', fitterData.fitter_id))
           const reviewsSnapshot = await getDocs(reviewsQuery)
           const reviewsData = reviewsSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data(),
             created_at: doc.data().created_at.toDate()
-          } as Review))
+          })) as Review[]
           setReviews(reviewsData)
           console.log('Reviews fetched:', reviewsData.length)
         } else {
@@ -123,7 +126,7 @@ export default function FitterProfilePage() {
   }
 
   const handleNextReviews = () => {
-    setCurrentReviewIndex(prevIndex => Math.min(prevIndex + 3, approvedReviews.length - 3))
+    setCurrentReviewIndex(prevIndex => Math.min(prevIndex + 3, reviews.length - 3))
   }
 
   const handlePrevReviews = () => {
@@ -235,7 +238,7 @@ export default function FitterProfilePage() {
               <Button 
                 className="w-full" 
                 variant="outline" 
-                onClick={() => router.push(`/review/${fitter.id}?fitter=${fitter.uid}`)}
+                onClick={() => router.push(`/review/${fitter.fitter_id}`)}
               >
                 <MessageSquare className="w-4 h-4 mr-2" />
                 Write a Review

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { doc, getDoc, addDoc, setDoc, collection } from 'firebase/firestore'
+import { query, where, getDocs, collection } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -78,16 +78,25 @@ export default function SurveyRequestPage() {
           email: 'support@smartspace.com',
         })
       } else if (fitterId) {
-        // Fetch the fitter data from Firestore
-        const fitterDocRef = doc(db, 'fitters', fitterId)
-        const fitterDoc = await getDoc(fitterDocRef)
+        try {
+          // Fetch fitter based on fitter_id from Firestore
+          const fitterQuery = query(
+            collection(db, 'Fitters'),
+            where('fitter_id', '==', fitterId)
+          )
+          const fitterSnapshot = await getDocs(fitterQuery)
 
-        if (fitterDoc.exists()) {
-          const data = fitterDoc.data() as Fitter
-          setFitter({
-            id: fitterDoc.id,
-            ...data
-          })
+          if (!fitterSnapshot.empty) {
+            const fitterData = fitterSnapshot.docs[0].data() as Fitter
+            setFitter({
+              id: fitterSnapshot.docs[0].id,
+              ...fitterData,
+            })
+          } else {
+            throw new Error('Fitter not found')
+          }
+        } catch (error) {
+          console.error('Error fetching fitter data:', error)
         }
       }
     }
