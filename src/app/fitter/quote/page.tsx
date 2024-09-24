@@ -1,9 +1,28 @@
 'use client'
 
-export const dynamic = 'force-dynamic';
+import React, { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 
-import QuoteFormWrapper from './QuoteFormWrapper';
+function QuotePage() {
+  const searchParams = useSearchParams();
 
-export default function QuotePage() {
-  return <QuoteFormWrapper />;
+  // Your component logic here
+
+  return (
+    <div>
+      {/* Your component JSX here */}
+    </div>
+  );
+}
+
+export default function Page() {
+  if (process.env.NODE_ENV === 'production') {
+    return (
+      <Suspense fallback={<div>Loading...</div>}>
+        <QuotePage />
+      </Suspense>
+    );
+  }
+
+  return <QuotePage />;
 }
