@@ -6,13 +6,15 @@ const nextConfig = {
       'your-image-domain.com',
       'maps.googleapis.com',
       'maps.gstatic.com',
-      'firebasestorage.googleapis.com'
+      'firebasestorage.googleapis.com',
     ],
   },
   eslint: {
+    // Ignore ESLint errors during build
     ignoreDuringBuilds: true,
   },
   typescript: {
+    // Ignore TypeScript errors during build
     ignoreBuildErrors: true,
   },
   // This will allow Vercel to handle 404s properly
@@ -20,8 +22,7 @@ const nextConfig = {
   // Disable static optimization to force dynamic rendering
   experimental: {
     disableOptimizedLoading: true,
-    appDir: true,
   },
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

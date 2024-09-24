@@ -1,5 +1,16 @@
 'use client'
 
+// Move metadata settings to viewport export
+export const dynamic = 'force-dynamic'
+
+// Add the correct viewport and themeColor export
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+}
+
+export const themeColor = '#ffffff'
+
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -12,7 +23,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { db, auth } from '@/lib/firebase'
 import { collection, addDoc } from 'firebase/firestore'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
-import AutocompleteInput from '@/components/AutocompleteInput'
 
 const formSchema = z.object({
   company_name: z.string().min(2, { message: "Company name must be at least 2 characters." }),
@@ -156,13 +166,7 @@ export default function FitterRegistration() {
               <FormItem>
                 <FormLabel>Address</FormLabel>
                 <FormControl>
-                  <AutocompleteInput
-                    value={field.value}
-                    onChange={(value) => field.onChange(value)}
-                    onPlaceSelected={(place) => {
-                      field.onChange(place.formatted_address)
-                    }}
-                  />
+                  <Input placeholder="123 Main St" {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
