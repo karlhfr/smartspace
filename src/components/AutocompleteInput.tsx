@@ -1,25 +1,29 @@
-// AutocompleteInput.tsx
+import React from 'react';
 
-import React, { useState } from 'react';
+interface AutocompleteInputProps {
+  id: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onPlaceSelected: (place: { formatted_address: string; latitude: number; longitude: number }) => void;
+  className?: string;
+}
 
-const AutocompleteInput: React.FC = () => {
-  const [value, setValue] = useState('');
-
-  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setValue(event.target.value);
-  };
+export function AutocompleteInput({
+  id,
+  value,
+  onChange,
+  onPlaceSelected,
+  className,
+}: AutocompleteInputProps) {
+  // Implement the autocomplete logic here
 
   return (
-    <div>
-      <input 
-        type="text" 
-        value={value} 
-        onChange={handleChange} 
-        placeholder="Start typing..." 
-      />
-      {/* Render autocomplete options based on the input value */}
-    </div>
+    <input
+      id={id}
+      value={value}
+      onChange={onChange}
+      className={className}
+      // Add other necessary props and logic
+    />
   );
-};
-
-export default AutocompleteInput;
+}
