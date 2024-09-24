@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { useToast } from "@/components/ui/use-toast"
 import { useAuth } from '@/contexts/AuthContext'
+import { Suspense } from 'react';
 
 const formSchema = z.object({
   name: z.string().min(2, {
@@ -50,7 +51,7 @@ interface SurveyRequest {
   created_at: Date
 }
 
-export default function SurveyRequestPage() {
+function SurveyRequestContent() {
   const searchParams = useSearchParams()
   const fitterId = searchParams?.get('fitter') || ''
   const isSmartSpace = searchParams?.get('smartspace') === 'true'
@@ -185,4 +186,12 @@ export default function SurveyRequestPage() {
       </CardContent>
     </Card>
   )
+}
+
+export default function SurveyRequestPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <SurveyRequestContent />
+    </Suspense>
+  );
 }

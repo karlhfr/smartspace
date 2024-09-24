@@ -1,5 +1,7 @@
-import { NextResponse } from 'next/server'
-import { auth, db } from '@/lib/firebase-admin'
+import { NextResponse } from 'next/server';
+import { auth, db } from '@/lib/firebase-admin';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   console.log('Received request to /api/fitters/current');

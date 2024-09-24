@@ -20,6 +20,7 @@ const nextConfig = {
   // Disable static optimization to force dynamic rendering
   experimental: {
     disableOptimizedLoading: true,
+    appDir: true,
   },
 }
 
