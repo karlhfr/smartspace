@@ -134,4 +134,10 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({ value, onChange, 
   )
 }
 
+export function SimpleAutocompleteInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input {...props} />
+  )
+}
+
 export default AutocompleteInput;
